@@ -140,10 +140,23 @@ void setup(void)
   Serial.println(F("Hit start button"));
   oled.println();
   oled.println (F("Hit start button"));     // signal initalization done
+
+  // Wait here for button press
   while(digitalRead(BUTTON1) != LOW) {
-    delay(10);
-    } // wait here for button press
-	
+      if (millis() - lastTime > updateTime){
+      // Update lastTime
+      lastTime = millis();
+      // Send the command to get all available temperatures
+      sensors.requestTemperatures(); 
+      // currWaterTempC = sensors.getTempCByIndex(0);
+      warmWaterTempC = sensors.getTempC(warmedThermometer);
+      ambientWaterTempC = sensors.getTempC(ambientThermometer);
+      // Use function to print temperatures to OLED display
+      PrintoledTemps();
+      oled.println();
+      oled.println(F("Hit start button"));
+    } 
+  }
 	// Turn on heater
 	digitalWrite(MOSFET, HIGH); 
 
@@ -172,6 +185,11 @@ void loop (void)
 			Serial.println(F("C"));
       // Use function to print temperatures to OLED display
       PrintoledTemps();
+      oled.println();
+      oled.println(F("Heating"));
+      // Include the elapsed heating time
+      oled.print(F("Elapsed sec: "));
+      oled.println( (millis() - myMillis)/1000);
 		}
 	}
 	// If the while loop above quits for any reason, kill the heater
@@ -183,6 +201,11 @@ void loop (void)
 	  if (millis() - lastTime > updateTime){
       // Update lastTime
       lastTime = millis();
+      // Send the command to get all available temperatures
+      sensors.requestTemperatures(); 
+      // currWaterTempC = sensors.getTempCByIndex(0);
+      warmWaterTempC = sensors.getTempC(warmedThermometer);
+      ambientWaterTempC = sensors.getTempC(ambientThermometer);
 	    // Use function to print temperatures to OLED display
       PrintoledTemps();
       oled.println();
