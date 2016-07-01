@@ -3,29 +3,39 @@
 
 	Use a DS18B20 temperature sensor probe to track water 
 	temperature as a heater heats it.
-  Record data to an SD card to allow standalone operation.
-  Potentially show data on OLED display screen
+  
+  Show data on OLED display screen
 	
 	The hardware includes two OneWire DS18B20 temperature
-	sensor, one for the warmed water and one for the 
+	sensors, one for the warmed water and one for the 
 	ambient water. The individual sensor addresses are 
 	hard coded in the preamble below and would need to be
-	updated to use other sensors. 
+	updated to use other sensors. The data line for the 
+  OneWire devices is Arduino pin 3
 	
 	The heating is accomplished by a 12VDC silicone heating 
 	pad connected to a MOSFET attached to pin 8 of the 
-	arduino.
+	Arduino.
+
+  A tactile switch button is attached to Arduino pin 2 and
+  ground. 
+
+  The Reset pin for the OLED I2C display is attached to 
+  Arduino pin 4
+
+  
 	
 */
 
 // Include the libraries we need
-//#include <Wire.h>
+#include <Wire.h>
 #include <SPI.h>
 #include <OneWire.h>  // https://github.com/PaulStoffregen/OneWire
 #include <DallasTemperature.h> // https://github.com/milesburton/Arduino-Temperature-Control-Library
 //#include <SdFat.h>  // https://github.com/greiman/SdFat
 #include "SSD1306Ascii.h" // https://github.com/greiman/SSD1306Ascii
-#include "SSD1306AsciiAvrI2c.h" // https://github.com/greiman/SSD1306Ascii
+#include "SSD1306AsciiWire.h" // https://github.com/greiman/SSD1306Ascii
+//#include "SSD1306AsciiAvrI2c.h" // https://github.com/greiman/SSD1306Ascii
 
 // Data wire is plugged into port 2 on the Arduino
 #define ONE_WIRE_BUS 3
@@ -59,7 +69,10 @@ float ambientWaterTempC = 0; // ambient water temperature
 #define MOSFET 8  // Arduino digital pin used to turn on MOSFET
 
 // Define the OLED display object
-SSD1306AsciiAvrI2c oled;
+SSD1306AsciiWire oled;  // When using Wire library
+//SSD1306AsciiAvrI2c oled; // When using the smaller AvrI2C library instead of Wire library
+
+
 #define I2C_ADDRESS 0x3C
 #define OLED_RESET 4 // Digital pin hooked to OLED reset line
 
@@ -127,7 +140,7 @@ void setup(void)
   oled.setFont(Adafruit5x7);
   oled.clear();  
   
-	myMillis = millis();
+	
 	// Poll the temperature sensors
 	sensors.requestTemperatures();
 	warmWaterTempC = sensors.getTempC(warmedThermometer);
@@ -159,6 +172,8 @@ void setup(void)
   }
 	// Turn on heater
 	digitalWrite(MOSFET, HIGH); 
+  // Set myMillis to denote start time
+  myMillis = millis();
 
 }
 
