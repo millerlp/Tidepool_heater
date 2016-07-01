@@ -37,7 +37,7 @@
 #include <SdFat.h>  // https://github.com/greiman/SdFat
 #include "SSD1306Ascii.h" // https://github.com/greiman/SSD1306Ascii
 #include "SSD1306AsciiWire.h" // https://github.com/greiman/SSD1306Ascii
-//#include "SSD1306AsciiAvrI2c.h" // https://github.com/greiman/SSD1306Ascii
+
 
 // Data wire is plugged into port 2 on the Arduino
 #define ONE_WIRE_BUS 3
@@ -60,7 +60,9 @@ DeviceAddress ambientThermometer = { 0x28, 0x82, 0x2C, 0xA3, 0x06, 0x0, 0x0, 0xE
 unsigned long myMillis = 0;
 unsigned long maxHeatTime = 400; // time heater is allowed to run (seconds)
 unsigned long updateTime = 2; // time to update Serial monitor (seconds)
+unsigned long SDupdateTime = 10; // time to write data to SD card (seconds)
 unsigned long lastTime = 0; // variable to keep previous time value
+unsigned long lastSDTime = 0; // variable to keep previous SD write time value
 
 // Temperature variables
 float maxTempC = 29.0; // maximum temperature (C) allowed before shutting off heater
@@ -70,17 +72,28 @@ float ambientWaterTempC = 0; // ambient water temperature
 //*************************
 #define MOSFET 8  // Arduino digital pin used to turn on MOSFET
 
+//*********************************************
 // Define the OLED display object
 SSD1306AsciiWire oled;  // When using Wire library
-//SSD1306AsciiAvrI2c oled; // When using the smaller AvrI2C library instead of Wire library
-
-
 #define I2C_ADDRESS 0x3C
 #define OLED_RESET 4 // Digital pin hooked to OLED reset line
 
 //**********************
 #define BUTTON1 2 // Digital pin hooked to button
 
+//********************************
+// SD chip select pin.
+const uint8_t SD_CHIP_SELECT = 10;
+//*************
+// Create sd card objects
+SdFat sd;
+SdFile logfile;  // for sd card, this is the file object to be written to
+// Declare initial name for output files written to SD card
+char filename[] = "Temps_00.csv";
+bool sdErrorFlag = false; // false = no error, true = error
+
+//**********************************************************
+//**********************************************************
 void setup(void)
 {
   pinMode(MOSFET, OUTPUT);
@@ -135,6 +148,7 @@ void setup(void)
   // Convert maxHeatTime and updateTime to milliseconds
 	maxHeatTime = maxHeatTime * 1000;
 	updateTime = updateTime * 1000;
+  SDupdateTime = SDupdateTime * 1000;
 
   // Initialize the OLED display
   oled.reset(OLED_RESET);
@@ -152,9 +166,19 @@ void setup(void)
   // Use function to print temperatures to OLED display
   PrintoledTemps();
 
+  //**********************
+  // Set up SD card
+  pinMode(SD_CHIP_SELECT, OUTPUT);  // set chip select pin for SD card to output
+  if (!sd.begin(SD_CHIP_SELECT, SPI_FULL_SPEED)) {
+    sdErrorFlag = true; 
+  } else {
+    sdErrorFlag = false;
+    initFileName();
+  }
+  
+
   Serial.println(F("Hit start button"));
-  oled.println();
-  oled.println (F("Hit start button"));     // signal initalization done
+
 
   // Wait here for button press
   while(digitalRead(BUTTON1) != LOW) {
@@ -170,6 +194,9 @@ void setup(void)
       PrintoledTemps();
       oled.println();
       oled.println(F("Hit start button"));
+      if (sdErrorFlag){
+        oled.print(F("SD not found"));
+      }
     } 
   }
 	// Turn on heater
@@ -186,9 +213,10 @@ void loop (void)
 	// In the main loop, run the heater until the elapsed
 	// time exceeds maxHeatTime. After that just kill the heater
 	while ( (millis() - myMillis < maxHeatTime) & (warmWaterTempC < maxTempC)) {
-		if (millis() - lastTime > updateTime) {
+		if ( (millis() - lastTime) > updateTime) {
 			// Update lastTime
 			lastTime = millis();	
+      
 			// Send the command to get all available temperatures
 			sensors.requestTemperatures(); 
 			// currWaterTempC = sensors.getTempCByIndex(0);
@@ -207,15 +235,22 @@ void loop (void)
       // Include the elapsed heating time
       oled.print(F("Elapsed sec: "));
       oled.println( (millis() - myMillis)/1000);
-		}
-	}
+      // Check if it has been long enough to write another
+      // sample to the SD card
+      if ( (millis() - SDupdateTime) > lastSDTime) {
+        lastSDTime = millis();
+        writeToSD();
+      }
+		} // end of if (millis() - lastTime > updateTime)
+	} // end of heating while loop
+ 
 	// If the while loop above quits for any reason, kill the heater
 	digitalWrite(MOSFET, LOW); // turn off heater
 	Serial.println(F("Shutting off heat"));
 
 	// Go into infinite loop, only to be quit via hardware reset
 	while(1){
-	  if (millis() - lastTime > updateTime){
+	  if ( (millis() - lastTime) > updateTime){
       // Update lastTime
       lastTime = millis();
       // Send the command to get all available temperatures
@@ -260,4 +295,63 @@ void PrintoledTemps(void)
   oled.print(F("C"));
 }
 
+//-------------- initFileName --------------------------------------------------
+// initFileName - a function to create a filename for the SD card 
+// with a 2-digit counter in the name. 
+// The character array 'filename' was defined as a global array 
+// at the top of the sketch in the form "Temps_00.csv"
+void initFileName(void) {
+  
+  // Change the counter on the end of the filename
+  // (digits 6+7) to increment count for files generated on
+  // the same day. 
+  for (uint8_t i = 0; i < 100; i++) {
+    filename[6] = i / 10 + '0';
+    filename[7] = i % 10 + '0';
+    
+    if (!sd.exists(filename)) {
+      // when sd.exists() returns false, this block
+      // of code will be executed to open the file
+      if (!logfile.open(filename, O_RDWR | O_CREAT | O_AT_END)) {
+        // If there is an error opening the file, notify the
+        // user. Otherwise, the file is open and ready for writing
+        sdErrorFlag = true;
+      }
+      break; // Break out of the for loop when the
+      // statement if(!logfile.exists())
+      // is finally false (i.e. you found a new file name to use).
+    } // end of if(!sd.exists())
+  } // end of file-naming for loop
+  //------------------------------------------------------------
+  // Write 1st header line to SD file based on mission info
 
+  logfile.println(F("Seconds,WarmedTempC,AmbientTempC"));
+  logfile.close(); // force the data to be written to the file by closing it
+} // end of initFileName function
+
+
+//------------- writeToSD -----------------------------------------------
+// writeToSD function. This formats the available data in the
+// data arrays and writes them to the SD card file in a
+// comma-separated value format.
+void writeToSD (void) {
+
+  // Reopen logfile. If opening fails, notify the user
+  if (!logfile.isOpen()) {
+    if (!logfile.open(filename, O_RDWR | O_CREAT | O_AT_END)) {
+      sdErrorFlag = true; // If there is an error
+    } else {
+      sdErrorFlag = false; // File opened successfully
+    }
+  }
+
+  // Write elapsed seconds to first column
+  logfile.print( (millis() - myMillis)/1000);
+  logfile.print(F(","));
+  logfile.print(warmWaterTempC);
+  logfile.print(F(","));
+  logfile.print(ambientWaterTempC);
+  logfile.println();
+  
+  logfile.close(); // force the buffer to empty
+}
