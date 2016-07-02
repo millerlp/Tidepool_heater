@@ -58,7 +58,7 @@ DeviceAddress ambientThermometer = { 0x28, 0x82, 0x2C, 0xA3, 0x06, 0x0, 0x0, 0xE
 
 // Timekeeping
 unsigned long myMillis = 0;
-unsigned long maxHeatTime = 400; // time heater is allowed to run (seconds)
+unsigned long maxHeatTime = 14400; // time heater is allowed to run (seconds)
 unsigned long updateTime = 2; // time to update Serial monitor (seconds)
 unsigned long SDupdateTime = 10; // time to write data to SD card (seconds)
 unsigned long lastTime = 0; // variable to keep previous time value
