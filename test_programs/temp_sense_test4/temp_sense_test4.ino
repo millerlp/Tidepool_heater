@@ -61,7 +61,7 @@ DeviceAddress ambientThermometer = { 0x28, 0x82, 0x2C, 0xA3, 0x06, 0x0, 0x0, 0xE
 
 // Timekeeping
 unsigned long myMillis = 0;
-unsigned long maxHeatTime = 14400; // time heater is allowed to run (seconds)
+unsigned long maxHeatTime = 5 ; // time heater is allowed to run (HOURS)
 unsigned long updateTime = 2; // time to update Serial monitor (seconds)
 unsigned long SDupdateTime = 10; // time to write data to SD card (seconds)
 unsigned long lastTime = 0; // variable to keep previous time value
@@ -96,7 +96,7 @@ char filename[] = "Temps_00.csv";
 bool sdErrorFlag = false; // false = no error, true = error
 
 //******************************
-// Set up INA219 current/voltage monitor
+// Set up INA219 current/voltage monitor (default I2C address is 0x40)
 Adafruit_INA219 ina219(0x40);
 float shuntvoltage = 0;
 float busvoltage = 0;
@@ -162,7 +162,7 @@ void setup(void)
 	sensors.setResolution(ambientThermometer, TEMPERATURE_PRECISION);
   
   // Convert maxHeatTime and updateTime to milliseconds
-	maxHeatTime = maxHeatTime * 1000;
+	maxHeatTime = maxHeatTime * 60 * 60 * 1000;
 	updateTime = updateTime * 1000;
   SDupdateTime = SDupdateTime * 1000;
 
