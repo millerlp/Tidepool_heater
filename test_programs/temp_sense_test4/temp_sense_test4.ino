@@ -103,7 +103,9 @@ float busvoltage = 0;
 float current_mA = 0;
 float loadvoltage = 0;
 // Define a minimum safe voltage for the battery
-float voltageMin = 11.40; // units volts
+// Target 11.4 at battery, but we have at least a 0.6V drop to INA219 on
+// on the prototype breadboard (should be less on a proper PCB)
+float voltageMin = 10.8; // units volts 
   
 
 //**********************************************************
@@ -121,9 +123,9 @@ void setup(void)
   // Start up the OneWire library
   sensors.begin();
 
-  Serial.print("Found ");
+  Serial.print(F("Found "));
   Serial.print(sensors.getDeviceCount(), DEC);
-  Serial.println(" devices.");
+  Serial.println(F(" OneWire devices."));
   
   // Search for devices on the bus and assign based on an index. Ideally,
   // you would do this to initially discover addresses on the bus and then 
@@ -196,8 +198,7 @@ void setup(void)
   //ina219.setCalibration_32V_1A();
   //********************************
   shuntvoltage = ina219.getShuntVoltage_mV();
-  busvoltage = ina219.getBusVoltage_V();
-  current_mA = ina219.getCurrent_mA();
+
   loadvoltage = busvoltage + (shuntvoltage / 1000);
   
   Serial.println(warmWaterTempC);
@@ -214,9 +215,15 @@ void setup(void)
       lastTime = millis();
       // Send the command to get all available temperatures
       sensors.requestTemperatures(); 
-      // currWaterTempC = sensors.getTempCByIndex(0);
       warmWaterTempC = sensors.getTempC(warmedThermometer);
       ambientWaterTempC = sensors.getTempC(ambientThermometer);
+      // Update voltage and current data
+      busvoltage = ina219.getBusVoltage_V();
+      current_mA = ina219.getCurrent_mA();
+      shuntvoltage = ina219.getShuntVoltage_mV();
+      loadvoltage = busvoltage + (shuntvoltage / 1000);
+      // Update serial monitor
+      printSerial();
       // Use function to print temperatures+voltage to OLED display
       PrintoledTemps();
       oled.println();
@@ -243,7 +250,7 @@ void loop (void)
 	// In the main loop, run the heater until the elapsed
 	// time exceeds maxHeatTime. After that just kill the heater
 	while ( (millis() - myMillis < maxHeatTime) & (warmWaterTempC < maxTempC) & 
-	(busvoltage > voltageMin) )
+	(loadvoltage > voltageMin) )
 	{
     // If a few seconds have elapsed (set by updateTime), take 
     // new temperatures and update display
@@ -258,15 +265,12 @@ void loop (void)
 			ambientWaterTempC = sensors.getTempC(ambientThermometer);
       // Update busvoltage
       busvoltage = ina219.getBusVoltage_V();
+      current_mA = ina219.getCurrent_mA();
+      shuntvoltage = ina219.getShuntVoltage_mV();
+      loadvoltage = busvoltage + (shuntvoltage / 1000);
       
 			// Output new info to Serial monitor
-			Serial.print(F("Heated: "));
-			Serial.print(warmWaterTempC);
-			Serial.print(F("C \t ambient: "));
-			Serial.print(ambientWaterTempC);
-			Serial.print(F("C\t Voltage: "));
-      Serial.print(busvoltage);
-      Serial.println(F(" V"));
+      printSerial();
       // Use function to print temperatures to OLED display
       PrintoledTemps();
       oled.println();
@@ -339,7 +343,7 @@ void PrintoledTemps(void)
   oled.print(F(" C"));
   oled.println();
   // 3rd line, show battery voltage
-  oled.print(busvoltage);
+  oled.print(loadvoltage);
   oled.print(F(" V "));
   oled.print(current_mA);
   oled.print(F("mA"));
@@ -374,9 +378,9 @@ void initFileName(void) {
   } // end of file-naming for loop
   //------------------------------------------------------------
   // Write 1st header line to SD file based on mission info
-
-  logfile.println(F("Seconds,WarmedTempC,AmbientTempC,BatteryV"));
-  logfile.close(); // force the data to be written to the file by closing it
+  logfile.println(F("Seconds,WarmedTempC,AmbientTempC,BatteryV,Current.mA"));
+  
+  logfile.close(); // Force the data to be written to the file by closing it
 } // end of initFileName function
 
 
@@ -402,9 +406,27 @@ void writeToSD (void) {
   logfile.print(F(","));
   logfile.print(ambientWaterTempC);
   logfile.print(F(","));
-  logfile.print(busvoltage);
+  logfile.print(loadvoltage);
+  logfile.print(F(","));
+  logfile.print(current_mA);
   logfile.println();
-  
   
   logfile.close(); // force the buffer to empty
 }
+
+//-----------printSerial--------------------
+void printSerial (void)
+{
+      Serial.print(F("Heated: "));
+      Serial.print(warmWaterTempC);
+      Serial.print(F("C \t ambient: "));
+      Serial.print(ambientWaterTempC);
+      Serial.print(F("C\t Bus Voltage: "));
+      Serial.print(busvoltage);
+      Serial.print(F(" V\t Load Voltage: "));
+      Serial.print(loadvoltage);
+      Serial.print(F(" V\t current: "));
+      Serial.print(current_mA);
+      Serial.println(F("mA"));
+}
+
