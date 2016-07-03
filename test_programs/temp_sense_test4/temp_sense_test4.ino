@@ -105,7 +105,7 @@ float loadvoltage = 0;
 // Define a minimum safe voltage for the battery
 // Target 11.4 at battery, but we have at least a 0.6V drop to INA219 on
 // on the prototype breadboard (should be less on a proper PCB)
-float voltageMin = 10.8; // units volts 
+float voltageMin = 11.1; // units volts 
   
 
 //**********************************************************
