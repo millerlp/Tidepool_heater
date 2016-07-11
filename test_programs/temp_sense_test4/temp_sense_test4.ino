@@ -83,6 +83,7 @@ SSD1306AsciiWire oled;  // When using Wire library
 
 //**********************
 #define BUTTON1 2 // Digital pin hooked to button
+#define REDLED 7 // Red LED to be used to denote heater power on
 
 //********************************
 // SD chip select pin.
@@ -105,7 +106,11 @@ float loadvoltage = 0;
 // Define a minimum safe voltage for the battery
 // Target 11.4 at battery, but we have at least a 0.6V drop to INA219 on
 // on the prototype breadboard (should be less on a proper PCB)
+<<<<<<< HEAD
 float voltageMin = 11.1; // units volts 
+=======
+float voltageMin = 11.6; // units volts 
+>>>>>>> origin/master
   
 
 //**********************************************************
@@ -115,6 +120,8 @@ void setup(void)
   pinMode(MOSFET, OUTPUT);
   digitalWrite(MOSFET, LOW);
   pinMode(BUTTON1, INPUT_PULLUP);
+  pinMode(REDLED, OUTPUT);
+  digitalWrite(REDLED, LOW);
 
   // start serial port
   Serial.begin(57600);
@@ -236,6 +243,7 @@ void setup(void)
   }
 	// Turn on heater
 	digitalWrite(MOSFET, HIGH); 
+  digitalWrite(REDLED, HIGH); // Turn on red led to show heater power is on
   // Set myMillis to denote start time
   myMillis = millis();
 
@@ -248,7 +256,8 @@ void loop (void)
   initFileName();
   
 	// In the main loop, run the heater until the elapsed
-	// time exceeds maxHeatTime. After that just kill the heater
+	// time exceeds maxHeatTime or the battery supply voltage 
+	// drops below the voltageMin. After that just kill the heater.
 	while ( (millis() - myMillis < maxHeatTime) & (warmWaterTempC < maxTempC) & 
 	(loadvoltage > voltageMin) )
 	{
@@ -290,6 +299,7 @@ void loop (void)
  
 	// If the while loop above quits for any reason, kill the heater
 	digitalWrite(MOSFET, LOW); // turn off heater
+  digitalWrite(REDLED, LOW); // turn off notification LED
 	Serial.println(F("Shutting off heat"));
 
 	// Go into infinite loop, only to be quit via hardware reset
