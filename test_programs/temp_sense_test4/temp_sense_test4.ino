@@ -256,27 +256,27 @@ void loop (void)
 	// In the main loop, run the heater until the elapsed
 	// time exceeds maxHeatTime or the battery supply voltage 
 	// drops below the voltageMin. After that just kill the heater.
-	while ( (millis() - myMillis < maxHeatTime) & (warmWaterTempC < maxTempC) & 
+  while ( (millis() - myMillis < maxHeatTime) & (warmWaterTempC < maxTempC) & 
 	(loadvoltage > voltageMin) )
-	{
+  {
     // If a few seconds have elapsed (set by updateTime), take 
     // new temperatures and update display
-		if ( (millis() - lastTime) > updateTime) {
-			// Update lastTime
-			lastTime = millis();	
+  		if ( (millis() - lastTime) > updateTime) {
+  			// Update lastTime
+  			lastTime = millis();	
       
-			// Send the command to get all available temperatures
-			sensors.requestTemperatures(); 
-			// Write temperatures to the separate variables
-			warmWaterTempC = sensors.getTempC(warmedThermometer);
-			ambientWaterTempC = sensors.getTempC(ambientThermometer);
+  			// Send the command to get all available temperatures
+  			sensors.requestTemperatures(); 
+  			// Write temperatures to the separate variables
+  			warmWaterTempC = sensors.getTempC(warmedThermometer);
+  			ambientWaterTempC = sensors.getTempC(ambientThermometer);
       // Update busvoltage
       busvoltage = ina219.getBusVoltage_V();
       current_mA = ina219.getCurrent_mA();
       shuntvoltage = ina219.getShuntVoltage_mV();
       loadvoltage = busvoltage + (shuntvoltage / 1000);
       
-			// Output new info to Serial monitor
+	// Output new info to Serial monitor
       printSerial();
       // Use function to print temperatures to OLED display
       PrintoledTemps();
@@ -293,21 +293,21 @@ void loop (void)
         writeToSD();
       }
 		} // end of if (millis() - lastTime > updateTime)
-	} // end of heating while loop
+  } // end of heating while loop
  
-	// If the while loop above quits for any reason, kill the heater
-	digitalWrite(MOSFET, LOW); // turn off heater
+ // If the while loop above quits for any reason, kill the heater
+  digitalWrite(MOSFET, LOW); // turn off heater
   digitalWrite(REDLED, LOW); // turn off notification LED
-	Serial.println(F("Shutting off heat"));
+  Serial.println(F("Shutting off heat"));
 
-	// Go into infinite loop, only to be quit via hardware reset
-	while(1){
-	  if ( (millis() - lastTime) > updateTime){
+  // Go into infinite loop, only to be quit via hardware reset
+  while(1) {
+    if ( (millis() - lastTime) > updateTime)
+    {
       // Update lastTime
       lastTime = millis();
       // Send the command to get all available temperatures
       sensors.requestTemperatures(); 
-      // currWaterTempC = sensors.getTempCByIndex(0);
       warmWaterTempC = sensors.getTempC(warmedThermometer);
       ambientWaterTempC = sensors.getTempC(ambientThermometer);
       // Update busvoltage
@@ -315,17 +315,23 @@ void loop (void)
       current_mA = ina219.getCurrent_mA();
       shuntvoltage = ina219.getShuntVoltage_mV();
       loadvoltage = busvoltage + (shuntvoltage / 1000);
-	    // Use function to print temperatures+voltage to OLED display
+    // Use function to print temperatures+voltage to OLED display
       PrintoledTemps();
       oled.println();
       oled.println(F("Finished"));
-	  }
-	}
+      // Check if it has been long enough to write another
+      // sample to the SD card (set by lastSDTime)
+      if ( (millis() - SDupdateTime) > lastSDTime) {
+        lastSDTime = millis();
+        writeToSD();
+      }
+    } // End of if statement
+  } // End of while loop
 
 }
 
 
-//---------------printAddress-------------------------------------------
+//---------------printAddress--------------------------------------
 // function to print a device address
 void printAddress(DeviceAddress deviceAddress)
 {
