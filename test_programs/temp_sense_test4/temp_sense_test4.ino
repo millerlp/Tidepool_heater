@@ -106,11 +106,9 @@ float loadvoltage = 0;
 // Define a minimum safe voltage for the battery
 // Target 11.4 at battery, but we have at least a 0.6V drop to INA219 on
 // on the prototype breadboard (should be less on a proper PCB)
-<<<<<<< HEAD
-float voltageMin = 11.1; // units volts 
-=======
+//float voltageMin = 11.1; // units volts 
 float voltageMin = 11.6; // units volts 
->>>>>>> origin/master
+
   
 
 //**********************************************************
@@ -312,7 +310,12 @@ void loop (void)
       // currWaterTempC = sensors.getTempCByIndex(0);
       warmWaterTempC = sensors.getTempC(warmedThermometer);
       ambientWaterTempC = sensors.getTempC(ambientThermometer);
-	    // Use function to print temperatures to OLED display
+      // Update busvoltage
+      busvoltage = ina219.getBusVoltage_V();
+      current_mA = ina219.getCurrent_mA();
+      shuntvoltage = ina219.getShuntVoltage_mV();
+      loadvoltage = busvoltage + (shuntvoltage / 1000);
+	    // Use function to print temperatures+voltage to OLED display
       PrintoledTemps();
       oled.println();
       oled.println(F("Finished"));
