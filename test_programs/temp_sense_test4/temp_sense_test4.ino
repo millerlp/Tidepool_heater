@@ -94,7 +94,7 @@ SdFat sd;
 SdFile logfile;  // for sd card, this is the file object to be written to
 // Declare initial name for output files written to SD card
 char filename[] = "Temps_00.csv";
-bool sdErrorFlag = false; // false = no error, true = error
+volatile bool sdErrorFlag = false; // false = no error, true = error
 
 //******************************
 // Set up INA219 current/voltage monitor (default I2C address is 0x40)
@@ -188,7 +188,7 @@ void setup(void)
   //**********************
   // Set up SD card
   pinMode(SD_CHIP_SELECT, OUTPUT);  // set chip select pin for SD card to output
-  if (!sd.begin(SD_CHIP_SELECT, SPI_FULL_SPEED)) {
+  if (!sd.begin(SD_CHIP_SELECT, SPI_HALF_SPEED)) {
     sdErrorFlag = true; 
   } else {
     sdErrorFlag = false;
@@ -284,13 +284,18 @@ void loop (void)
       // Include the elapsed heating time
       oled.print(F("Time: "));
       oled.print( (millis() - myMillis)/1000);
-      oled.println(F(" Heating"));
-      
+      oled.print(F(" Heating"));
+      if (sdErrorFlag){
+          oled.print(F("No SD"));
+      } else {
+        oled.print(F("     "));
+      }
       // Check if it has been long enough to write another
       // sample to the SD card (set by lastSDTime)
       if ( (millis() - SDupdateTime) > lastSDTime) {
         lastSDTime = millis();
         writeToSD();
+
       }
 		} // end of if (millis() - lastTime > updateTime)
   } // end of heating while loop
@@ -318,12 +323,18 @@ void loop (void)
     // Use function to print temperatures+voltage to OLED display
       PrintoledTemps();
       oled.println();
-      oled.println(F("Finished"));
+      oled.print(F("Finished"));
+      if (sdErrorFlag){
+          oled.print(F("No SD"));
+      } else {
+         oled.print(F("     ")); 
+      }
       // Check if it has been long enough to write another
       // sample to the SD card (set by lastSDTime)
       if ( (millis() - SDupdateTime) > lastSDTime) {
         lastSDTime = millis();
         writeToSD();
+
       }
     } // End of if statement
   } // End of while loop
