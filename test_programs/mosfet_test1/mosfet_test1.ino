@@ -1,6 +1,6 @@
 /* mosfet_test1.ino
- *  A simple sketch with arduino pro mini 3v3
- *  controlling pin 8 atached to gate pin 
+ *  A simple sketch with Tidepool_heater_RevA
+ *  controlling pin D8 (PB0) attached to gate pin 
  *  of a 30V N-channel MOSFET. The MOSFET
  *  source pin is connected to ground and 
  *  pulled down with a 10k ohm resistor to
