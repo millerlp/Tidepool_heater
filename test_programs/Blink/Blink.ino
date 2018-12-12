@@ -19,17 +19,17 @@ void setup() {
 }
 
 void loop() {
-  setColor(255, 0, 0);  // red
+  setColor(61, 0, 0);  // red
   delay(1000);
-  setColor(0, 255, 0);  // green
+  setColor(0, 61, 0);  // green
   delay(1000);
-  setColor(0, 0, 255);  // blue
+  setColor(0, 0, 61);  // blue
   delay(1000);
-  setColor(230, 255, 0);  // yellow
+  setColor(115, 127, 0);  // yellow
   delay(1000);  
   setColor(80, 0, 80);  // purple
   delay(1000);
-  setColor(0, 255, 240);  // aqua
+  setColor(0, 127, 120);  // aqua
   delay(1000);
 }
 
