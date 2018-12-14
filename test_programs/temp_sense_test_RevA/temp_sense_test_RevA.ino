@@ -248,11 +248,11 @@ void setup(void)
 	// Turn on heater
 	digitalWrite(MOSFET, HIGH); 
   digitalWrite(BLULED, HIGH); // Turn off blue LED if on
+  oled.clear();
   oled.print(F("Starting..."));
   delay(200);
   digitalWrite(REDLED, LOW); // Turn on red led to show heater power is on
   wdt_enable(WDTO_4S); // Enable 4 second watchdog timer timeout
-  attachInterrupt(0, buttonFunc, LOW); // Start interrupt monitoring on button1 (INT0)
   // Set myMillis to denote start time
   myMillis = millis();
 }  // end of setup loop
@@ -262,6 +262,7 @@ void loop (void)
 {
   // Start by initializing the output file 
   initFileName();
+  Serial.println(F("Starting heater"));
   
 	// In the main loop, run the heater until the elapsed
 	// time exceeds maxHeatTime or the battery supply voltage 
@@ -310,16 +311,16 @@ void loop (void)
 
       }
 		} // end of if (millis() - lastTime > updateTime)
-   if (quitFlag == true);{
-    break;
+   if (quitFlag){
+    break; // Leave the heating loop, proceed to the infinite loop below
    }
-   attachInterrupt(0, buttonFunc, LOW);
+   // Enable button1 interrupt to quit this loop when user presses button1
+   attachInterrupt(0, buttonFunc, LOW); 
   } // end of heating while loop
  
  // If the while loop above quits for any reason, kill the heater
   digitalWrite(MOSFET, LOW); // turn off heater
   digitalWrite(REDLED, HIGH); // turn off notification LED
-  Serial.println(F("Shutting off heat"));
 
   // Go into infinite loop, only to be quit via hardware reset
   while(1) {
@@ -352,6 +353,7 @@ void loop (void)
         writeToSD();
 
       }
+      wdt_reset();
       digitalWrite(GRNLED, LOW); // flash on
       delay(20);
       digitalWrite(GRNLED, HIGH); // shut off again
@@ -483,8 +485,9 @@ void printSerial (void)
 // buttonFunc
 void buttonFunc(void){
   detachInterrupt(0); // Turn off the interrupt
+//  Serial.println(F("INT"));
   delay(20);
-  if (digitalRead(BUTTON1) == HIGH){
+  if (digitalRead(BUTTON1) == LOW){
     quitFlag = true; // Button has been pressed for at least 20ms, quit heating loop
   }
   // Execution will now return to wherever it was interrupted, and this
