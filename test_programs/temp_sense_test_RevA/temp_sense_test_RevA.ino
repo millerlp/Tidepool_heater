@@ -36,7 +36,7 @@
 #include <SdFat.h>  // https://github.com/greiman/SdFat
 #include "SSD1306Ascii.h" // https://github.com/greiman/SSD1306Ascii
 #include "SSD1306AsciiWire.h" // https://github.com/greiman/SSD1306Ascii
-#include <Adafruit_INA219.h> // https://github.com/adafruit/Adafruit_INA219
+#include <INA219.h> // https://github.com/millerlp/INA219
 #include <avr/wdt.h>
 
 
@@ -107,7 +107,7 @@ float loadvoltage = 0;
 // Target 11.4 at battery, but we have at least a 0.6V drop to INA219 on
 // on the prototype breadboard (should be less on a proper PCB)
 //float voltageMin = 11.1; // units volts 
-float voltageMin = 11.2; // units volts 
+float voltageMin = 11.9; // units volts 
 
   
 
@@ -203,8 +203,8 @@ void setup(void)
   // By default the initialization will use the largest range (32V, 2A).  However
   // you can call a setCalibration function to change this range (see comments).
   ina219.begin();
-  // To use a slightly lower 32V, 1A range (higher precision on amps):
-  //ina219.setCalibration_32V_1A();
+  // To use a 32V, 32A range (lower precision on amps):
+  ina219.setCalibration_32V_32A();
   //********************************
   shuntvoltage = ina219.getShuntVoltage_mV();
 
@@ -268,7 +268,7 @@ void loop (void)
 	// time exceeds maxHeatTime or the battery supply voltage 
 	// drops below the voltageMin. After that just kill the heater.
   while ( (millis() - myMillis < maxHeatTime) & (warmWaterTempC < maxTempC) & 
-	(loadvoltage > voltageMin) )
+	(busvoltage > voltageMin) )
   {
     // Reset the watchdog timer every time the while loop loops
     wdt_reset(); 
@@ -395,9 +395,11 @@ void PrintoledTemps(void)
   oled.println();
   // 3rd line, show battery voltage
   oled.print(loadvoltage);
-  oled.print(F(" V "));
+  oled.println(F(" V load"));
   oled.print(current_mA);
-  oled.print(F("mA"));
+  oled.println(F("mA"));
+  oled.print(busvoltage);
+  oled.println(F(" V bus"));
 }
 
 //-------------- initFileName --------------------------------------------------
