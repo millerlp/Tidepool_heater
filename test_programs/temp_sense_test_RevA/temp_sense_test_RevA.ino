@@ -99,10 +99,10 @@ volatile bool sdErrorFlag = false; // false = no error, true = error
 //******************************
 // Set up INA219 current/voltage monitor (default I2C address is 0x40)
 Adafruit_INA219 ina219(0x40);
-float shuntvoltage = 0;
-float busvoltage = 0;
+float shuntvoltage = 0; // Voltage drop across shunt resistor (0.01ohm on heater board)
+float busvoltage = 0;  // Voltage at the load (heater)
 float current_mA = 0;
-float loadvoltage = 0;
+float loadvoltage = 0;  // Estimated battery voltage (prior to the shunt resistor + load)
 // Define a minimum safe voltage for the battery
 // Target 11.4 at battery, but we have at least a 0.6V drop to INA219 on
 // on the prototype breadboard (should be less on a proper PCB)
@@ -268,7 +268,7 @@ void loop (void)
 	// time exceeds maxHeatTime or the battery supply voltage 
 	// drops below the voltageMin. After that just kill the heater.
   while ( (millis() - myMillis < maxHeatTime) & (warmWaterTempC < maxTempC) & 
-	(busvoltage > voltageMin) )
+	(loadvoltage > voltageMin) )
   {
     // Reset the watchdog timer every time the while loop loops
     wdt_reset(); 
@@ -394,12 +394,12 @@ void PrintoledTemps(void)
   oled.print(F(" C"));
   oled.println();
   // 3rd line, show battery voltage
-  oled.print(loadvoltage);
-  oled.println(F(" V load"));
-  oled.print(current_mA);
-  oled.println(F("mA"));
   oled.print(busvoltage);
   oled.println(F(" V bus"));
+  oled.print(current_mA);
+  oled.println(F("mA"));
+  oled.print(loadvoltage);
+  oled.println(F(" V battery"));
 }
 
 //-------------- initFileName --------------------------------------------------
@@ -487,7 +487,6 @@ void printSerial (void)
 // buttonFunc
 void buttonFunc(void){
   detachInterrupt(0); // Turn off the interrupt
-//  Serial.println(F("INT"));
   delay(20);
   if (digitalRead(BUTTON1) == LOW){
     quitFlag = true; // Button has been pressed for at least 20ms, quit heating loop
