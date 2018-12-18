@@ -104,11 +104,12 @@ float busvoltage = 0;  // Voltage at the load (heater)
 float current_mA = 0;
 float loadvoltage = 0;  // Estimated battery voltage (prior to the shunt resistor + load)
 // Define a minimum safe voltage for the battery
-// Target 11.4 at battery, but we have at least a 0.6V drop to INA219 on
-// on the prototype breadboard (should be less on a proper PCB)
-//float voltageMin = 11.1; // units volts 
-float voltageMin = 11.9; // units volts 
-
+// Target final voltage of 11.9V at battery (no load)
+// With schottky diode, no load voltage drop is ~0.15V, and ~0.45V under load
+// So a loadvoltage reading of 12.0 is ~12.4V at the battery under load 
+// A loadvoltage reading of 11.4 under load 
+// should be ~11.9 at battery with no load
+float voltageMin = 11.4; // units: volts 
   
 
 //**********************************************************
