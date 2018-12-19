@@ -66,7 +66,7 @@ unsigned long lastTime = 0; // variable to keep previous time value
 unsigned long lastSDTime = 0; // variable to keep previous SD write time value
 bool quitFlag = false; // Flag to quit the heating loop
 // Temperature variables
-float maxTempC = 29.0; // maximum temperature (C) allowed before shutting off heater
+float maxTempC = 37.0; // maximum temperature (C) allowed before shutting off heater
 float warmWaterTempC = 0; // current heated water temperature
 float ambientWaterTempC = 0; // ambient water temperature
 
@@ -109,7 +109,7 @@ float loadvoltage = 0;  // Estimated battery voltage (prior to the shunt resisto
 // So a loadvoltage reading of 12.0 is ~12.4V at the battery under load 
 // A loadvoltage reading of 11.4 under load 
 // should be ~11.9 at battery with no load
-float voltageMin = 11.4; // units: volts 
+float voltageMin = 11.35; // units: volts 
   
 
 //**********************************************************
