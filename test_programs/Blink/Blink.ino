@@ -1,5 +1,5 @@
 // Blink.ino
-/* Basic test of the RGB LED on Tidepool_heater_RevA 
+/* Basic test of the RGB LED on Tidepool_heater_RevA/B/C 
  *  hardware. Uses a common anode led APFA3010SEEZGKQBKC
  *  from Kingbright.
  *  
