@@ -18,7 +18,7 @@
   OneWire devices is Arduino pin 3
 	
 	The heating is accomplished by a 12VDC silicone heating 
-	pad connected to a MOSFET attached to pin 8 of the 
+	pad connected to a MOSFET attached to pin 3 or 8 of the 
 	Arduino.
 
   A tactile switch button is attached to Arduino pin 2 and
@@ -42,8 +42,17 @@
 #include <Adafruit_INA219.h> // https://github.com/adafruit/Adafruit_INA219
 
 
-// Data wire is plugged into port 2 on the Arduino
-#define ONE_WIRE_BUS 3
+//*************************
+//#define REVC  // Comment this line out to use Rev A/B hardware
+
+// Change pin assignments based on hardware Revision
+#ifdef REVC
+#define ONE_WIRE_BUS 8  // For Rev C hardware
+#define MOSFET 3  // Arduino digital pin 3 used to turn on MOSFET on RevC 
+#else
+#define ONE_WIRE_BUS 3  // For Rev A/B hardware
+#define MOSFET 8  // Arduino digital pin 8 used to turn on MOSFET on RevA/B
+#endif
 // Define the bits of temperature precision for DS18B20
 #define TEMPERATURE_PRECISION 12
 // Setup a oneWire instance to communicate with any 
@@ -72,8 +81,7 @@ float maxTempC = 29.0; // maximum temperature (C) allowed before shutting off he
 float warmWaterTempC = 0; // current heated water temperature
 float ambientWaterTempC = 0; // ambient water temperature
 
-//*************************
-#define MOSFET 8  // Arduino digital pin used to turn on MOSFET
+
 
 //*********************************************
 // Define the OLED display object
@@ -459,4 +467,3 @@ void printSerial (void)
       Serial.print(current_mA);
       Serial.println(F("mA"));
 }
-
