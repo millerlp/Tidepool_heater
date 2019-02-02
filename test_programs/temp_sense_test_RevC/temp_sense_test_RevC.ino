@@ -248,6 +248,11 @@ void loop (void)
   if (!sdErrorFlag){
     initFileName();
   }
+  // Check to see if last load voltage value (i.e. voltage at battery)
+  // was below the voltageMin value
+  if (loadvoltage < voltageMin){
+    lowVoltageFlag = true;
+  }
 	// In the main loop, run the heater until the elapsed
 	// time exceeds maxHeatTime or the battery supply voltage 
 	// drops below the voltageMin. After that just kill the heater.
@@ -271,6 +276,11 @@ void loop (void)
         current_mA = ina219.getCurrent_mA();
         shuntvoltage = ina219.getShuntVoltage_mV();
         loadvoltage = busvoltage + (shuntvoltage / 1000);
+        if (loadvoltage < voltageMin){
+          // If the battery voltage has dropped too low, set
+          // a flag.
+          lowVoltageFlag = true;
+        }
       
 	    // Output new info to Serial monitor
         printSerial();
@@ -279,13 +289,11 @@ void loop (void)
         oled.println();
       // Include the elapsed heating time
         oled.print(F("Time: "));
-        oled.print( (millis() - myMillis)/1000);
+        oled.println( (millis() - myMillis)/1000);
         oled.print(F(" Heating"));
         oled.println();
         if (sdErrorFlag){
           oled.print(F("No SD"));
-        } else {
-          oled.print(F("     "));
         }
       // Check if it has been long enough to write another
       // sample to the SD card (set by lastSDTime)
@@ -306,6 +314,10 @@ void loop (void)
  // If the while loop above quits for any reason, kill the heater
   digitalWrite(MOSFET, LOW); // turn off heater
   setColor(0,0,0); // turn off notification LED
+  if (lowVoltageFlag){
+    Serial.println(F("Low voltage limit hit"));  
+  }
+  
   //*********************************************************
   // Go into infinite loop, only to be quit via hardware reset
   while(1) {
@@ -333,7 +345,6 @@ void loop (void)
       }
       oled.println();
       if (lowVoltageFlag){
-        Serial.println(F("Hit voltage min."));
         oled.print(F("Hit voltage min."));
       }
       // Check if it has been long enough to write another
