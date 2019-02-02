@@ -83,6 +83,7 @@ SSD1306AsciiWire oled;  // When using Wire library
 #define I2C_ADDRESS 0x3C
 
 //**********************
+#define COMMON_ANODE 
 #define BUTTON1 2 // Digital pin D2 (PD2) hooked to button 1
 #define REDLED 9 // Red LED 
 #define GRNLED 5 // Green LED
@@ -113,7 +114,7 @@ float loadvoltage = 0;  // Estimated battery voltage (prior to the shunt resisto
 // A loadvoltage reading of 11.4 under load 
 // should be ~11.9 at battery with no load
 float voltageMin = 11.35; // units: volts 
-  
+bool lowVoltageFlag = false;
 
 //**********************************************************
 //**********************************************************
@@ -194,7 +195,7 @@ void setup(void)
 
   Serial.println(F("Hit start button"));
 
-
+  //***********************************************************
   // Wait here for button press. Heating will not start
   // until the user chooses to start. Meanwhile, output
   // current temperatures, battery voltage
@@ -225,13 +226,16 @@ void setup(void)
       digitalWrite(BLULED, !digitalRead(BLULED));
     } 
   }
+  //***************************************************
 	// Turn on heater
 	digitalWrite(MOSFET, HIGH); 
   digitalWrite(BLULED, HIGH); // Turn off blue LED if on
   oled.clear();
   oled.print(F("Starting..."));
+  Serial.println(F("Starting heater"));
   delay(200);
-  digitalWrite(REDLED, LOW); // Turn on red led to show heater power is on
+//  digitalWrite(REDLED, LOW); // Turn on red led to show heater power is on
+  setColor(60,0,0); // red color
   wdt_enable(WDTO_4S); // Enable 4 second watchdog timer timeout
   // Set myMillis to denote start time
   myMillis = millis();
@@ -241,9 +245,9 @@ void setup(void)
 void loop (void)
 {
   // Start by initializing the output file 
-  initFileName();
-  Serial.println(F("Starting heater"));
-  
+  if (!sdErrorFlag){
+    initFileName();
+  }
 	// In the main loop, run the heater until the elapsed
 	// time exceeds maxHeatTime or the battery supply voltage 
 	// drops below the voltageMin. After that just kill the heater.
@@ -262,35 +266,37 @@ void loop (void)
   			sensors.requestTemperatures(); 
   			// Write temperatures to the separate variables
   			warmWaterTempC = sensors.getTempC(warmedThermometer);
-      // Update busvoltage
-      busvoltage = ina219.getBusVoltage_V();
-      current_mA = ina219.getCurrent_mA();
-      shuntvoltage = ina219.getShuntVoltage_mV();
-      loadvoltage = busvoltage + (shuntvoltage / 1000);
+        // Update busvoltage
+        busvoltage = ina219.getBusVoltage_V();
+        current_mA = ina219.getCurrent_mA();
+        shuntvoltage = ina219.getShuntVoltage_mV();
+        loadvoltage = busvoltage + (shuntvoltage / 1000);
       
-	// Output new info to Serial monitor
-      printSerial();
+	    // Output new info to Serial monitor
+        printSerial();
       // Use function to print temperatures to OLED display
-      PrintoledTemps();
-      oled.println();
+        PrintoledTemps();
+        oled.println();
       // Include the elapsed heating time
-      oled.print(F("Time: "));
-      oled.print( (millis() - myMillis)/1000);
-      oled.print(F(" Heating"));
-      if (sdErrorFlag){
+        oled.print(F("Time: "));
+        oled.print( (millis() - myMillis)/1000);
+        oled.print(F(" Heating"));
+        oled.println();
+        if (sdErrorFlag){
           oled.print(F("No SD"));
-      } else {
-        oled.print(F("     "));
-      }
+        } else {
+          oled.print(F("     "));
+        }
       // Check if it has been long enough to write another
       // sample to the SD card (set by lastSDTime)
-      if ( (millis() - SDupdateTime) > lastSDTime) {
-        lastSDTime = millis();
-        writeToSD();
-
-      }
+        if ( (millis() - SDupdateTime) > lastSDTime) {
+          lastSDTime = millis();
+          if (!sdErrorFlag){
+            writeToSD();
+          }
+        }
 		} // end of if (millis() - lastTime > updateTime)
-   if (quitFlag){
+   if (quitFlag){ // If someone hits BUTTON1 interrupt again to quit
     break; // Leave the heating loop, proceed to the infinite loop below
    }
    // Enable button1 interrupt to quit this loop when user presses button1
@@ -299,7 +305,7 @@ void loop (void)
  
  // If the while loop above quits for any reason, kill the heater
   digitalWrite(MOSFET, LOW); // turn off heater
-  digitalWrite(REDLED, HIGH); // turn off notification LED
+  setColor(0,0,0); // turn off notification LED
 
   // Go into infinite loop, only to be quit via hardware reset
   while(1) {
@@ -325,6 +331,11 @@ void loop (void)
       } else {
          oled.print(F("     ")); 
       }
+      oled.println();
+      if (lowVoltageFlag){
+        Serial.println(F("Hit voltage min."));
+        oled.print(F("Hit voltage min."));
+      }
       // Check if it has been long enough to write another
       // sample to the SD card (set by lastSDTime)
       if ( (millis() - SDupdateTime) > lastSDTime) {
@@ -333,9 +344,11 @@ void loop (void)
 
       }
       wdt_reset();
-      digitalWrite(GRNLED, LOW); // flash on
-      delay(20);
-      digitalWrite(GRNLED, HIGH); // shut off again
+//      digitalWrite(GRNLED, LOW); // flash on
+      setColor(0,60,0);
+      delay(200);
+      setColor(0,0,0);
+//      digitalWrite(GRNLED, HIGH); // shut off again
     } // End of if statement
   } // End of while loop
 
@@ -465,4 +478,16 @@ void buttonFunc(void){
   }
   // Execution will now return to wherever it was interrupted, and this
   // interrupt will still be disabled. 
+}
+
+void setColor(int red, int green, int blue)
+{
+  #ifdef COMMON_ANODE
+    red = 255 - red;
+    green = 255 - green;
+    blue = 255 - blue;
+  #endif
+  analogWrite(REDLED, red);
+  analogWrite(GRNLED, green);
+  analogWrite(BLULED, blue);  
 }
