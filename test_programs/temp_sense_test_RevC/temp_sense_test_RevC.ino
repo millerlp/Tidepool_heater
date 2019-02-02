@@ -236,7 +236,7 @@ void setup(void)
   delay(200);
 //  digitalWrite(REDLED, LOW); // Turn on red led to show heater power is on
   setColor(60,0,0); // red color
-  wdt_enable(WDTO_4S); // Enable 4 second watchdog timer timeout
+  wdt_enable(WDTO_8S); // Enable 4 or 8 second watchdog timer timeout
   // Set myMillis to denote start time
   myMillis = millis();
 }  // end of setup loop
@@ -306,7 +306,7 @@ void loop (void)
  // If the while loop above quits for any reason, kill the heater
   digitalWrite(MOSFET, LOW); // turn off heater
   setColor(0,0,0); // turn off notification LED
-
+  //*********************************************************
   // Go into infinite loop, only to be quit via hardware reset
   while(1) {
     if ( (millis() - lastTime) > updateTime)
@@ -340,15 +340,16 @@ void loop (void)
       // sample to the SD card (set by lastSDTime)
       if ( (millis() - SDupdateTime) > lastSDTime) {
         lastSDTime = millis();
-        writeToSD();
+        if (!sdErrorFlag){
+          writeToSD();
+        }
+        
 
       }
       wdt_reset();
-//      digitalWrite(GRNLED, LOW); // flash on
       setColor(0,60,0);
       delay(200);
       setColor(0,0,0);
-//      digitalWrite(GRNLED, HIGH); // shut off again
     } // End of if statement
   } // End of while loop
 
