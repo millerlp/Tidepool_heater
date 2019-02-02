@@ -290,7 +290,7 @@ void loop (void)
       // Include the elapsed heating time
         oled.print(F("Time: "));
         oled.println( (millis() - myMillis)/1000);
-        oled.print(F(" Heating"));
+        oled.print(F("       Heating"));
         oled.println();
         if (sdErrorFlag){
           oled.print(F("No SD"));
