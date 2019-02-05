@@ -170,7 +170,7 @@ void setup() {
   oldtime = newtime;    // store time
   oldday = oldtime.day(); // Store current day value
   debounceState = DEBOUNCE_STATE_IDLE;
-  mainState = STATE_RUN; // Start the main loop in run mode
+  mainState = STATE_IDLE; // Start the main loop in idle mode (mosfet off)
 } // End of setup loop
 
 
@@ -304,5 +304,3 @@ void setColor(int red, int green, int blue)
   analogWrite(GRNLED, green);
   analogWrite(BLULED, blue);  
 }
-
-
