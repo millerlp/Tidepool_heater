@@ -265,7 +265,6 @@ void loop() {
         unsigned long checkTime = millis(); // get the time
         
         if (checkTime < button1Time + mediumPressTime) {
-          Serial.println(F("Short press registered"));
           // User held button briefly, treat as a normal
           // button press, which will be handled differently
           // depending on which mainState the program is in.
@@ -277,12 +276,6 @@ void loop() {
           // Set main state to HEATING for a long-press
           mainState = STATE_HEATING;
           buttonFlag = true;
-          Serial.print("Long press\t");
-          Serial.print(button1Time);
-          Serial.print("\t");
-          Serial.print(checkTime);
-          Serial.print("\t Diff:");
-          Serial.println(checkTime - button1Time);
         }
         // Now that the button press has been handled, return
         // to DEBOUNCE_STATE_IDLE and await the next button press
