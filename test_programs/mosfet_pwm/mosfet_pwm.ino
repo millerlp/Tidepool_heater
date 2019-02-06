@@ -19,6 +19,9 @@
 //*************************
 #define REVC  // Comment this line out to use Rev A/B hardware
 
+float maxWatts = 3.0;
+float minWatts = 2.0; 
+
 // Change pin assignments based on hardware Revision
 #ifdef REVC
 #define ONE_WIRE_BUS 8  // For Rev C hardware
@@ -61,8 +64,7 @@ float Watts = 0; // Estimate power output, Watts
 // should be ~11.9 at battery with no load
 float voltageMin = 11.35; // units: volts 
 bool lowVoltageFlag = false;
-float maxWatts = 31;
-float minWatts = 28; 
+
 // Variables for the Modified Moving Average
 float movingAverageCurr = 0;
 float movingAverageCurrSum = 0;
@@ -73,7 +75,7 @@ float movingAverageShuntVSum = 0;
 // Number of samples for moving average:
 const byte averageCount = 100;
 word myPWM = 0; // 0-255 pulse width modulation value for MOSFET
-word maxPWM = 127; // 0-255
+word maxPWM = 255; // 0-255, 255 is full-on, 0 is off
 byte flashFlag = false; // Used to flash LED
 
 // ***** TYPE DEFINITIONS *****
@@ -126,8 +128,7 @@ void setup() {
   ina219.begin();
   // To use a 32V, 32A range (lower precision on amps):
   ina219.setCalibration_32V_32A();
-  // Enable the watchdog timer so that reset happens if anything stalls
-  wdt_enable(WDTO_8S); // Enable 4 or 8 second watchdog timer timeout
+
 
   attachInterrupt(0, buttonFunc, LOW);  // BUTTON1 interrupt
   buttonFlag = false;
@@ -148,6 +149,8 @@ void setup() {
   movingAverageShuntV = movingAverageShuntVSum / averageCount; // Calculate average
   loadVoltage = movingAverageBusV + (movingAverageShuntV / 1000); // Average battery voltage
   Watts = loadVoltage * movingAverageCurr; // Calculate estimated power output, Watts
+  // Enable the watchdog timer so that reset happens if anything stalls
+  wdt_enable(WDTO_8S); // Enable 4 or 8 second watchdog timer timeout
   myMillis = millis(); // Initialize
   
 } // end of setup loop
@@ -263,7 +266,9 @@ void loop() {
   //-------------------------------------------------------------
   switch(mainState){
     case STATE_IDLE:
-      digitalWrite(MOSFET, LOW); // make sure mosfet is off
+      myPWM = 0; // reset pwm value to 0
+      analogWrite(MOSFET, myPWM); // make sure mosfet is off
+      digitalWrite(REDLED, HIGH); // kill the red led channel
       PowerSample(ina219); // Sample INA219 and update current,voltage,power variables
     break; // end of STATE_IDLE case
 
@@ -343,7 +348,7 @@ void PowerSample(Adafruit_INA219& ina219) {
       // Update average load voltage
       loadVoltage = movingAverageBusV + (movingAverageShuntV / 1000);
       // Update power output
-      Watts = loadVoltage * movingAverageCurr;
+      Watts = loadVoltage * (movingAverageCurr / 1000);
 }
 
 //----------PrintoledTemps------------------
@@ -372,4 +377,7 @@ void PrintOLED(void)
   // 4th line, show Wattage
   oled.print(F("Watts: "));
   oled.println(Watts);
+  // 5th line
+  oled.print(F("PWM: "));
+  oled.println(myPWM);
 }
