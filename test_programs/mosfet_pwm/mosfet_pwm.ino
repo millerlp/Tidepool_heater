@@ -19,8 +19,8 @@
 //*************************
 #define REVC  // Comment this line out to use Rev A/B hardware
 
-float maxWatts = 3.0;
-float minWatts = 2.0; 
+float maxWatts = 31.0;
+float minWatts = 29.0; 
 
 // Change pin assignments based on hardware Revision
 #ifdef REVC
@@ -54,8 +54,9 @@ Adafruit_INA219 ina219(0x40);
 float currentShuntVoltage = 0; // Voltage drop across shunt resistor (0.01ohm on heater board)
 float currentBusVoltage = 0;  // Voltage at the load (heater)
 float currentCurrentValue = 0; // Current in mA
+float currentPowerValue = 0; // Power in mW
 float loadVoltage = 0;  // Estimated battery voltage (prior to the shunt resistor + load)
-float Watts = 0; // Estimate power output, Watts
+float Watts = 0; // Estimated power output, Watts
 // Define a minimum safe voltage for the battery
 // Target final voltage of 11.9V at battery (no load)
 // With schottky diode, no load voltage drop is ~0.15V, and ~0.45V under load
@@ -72,6 +73,8 @@ float movingAverageBusV = 0;
 float movingAverageBusVSum = 0;
 float movingAverageShuntV = 0;
 float movingAverageShuntVSum = 0;
+float movingAveragePower = 0;
+float movingAveragePowerSum = 0;
 // Number of samples for moving average:
 const byte averageCount = 100;
 word myPWM = 0; // 0-255 pulse width modulation value for MOSFET
@@ -136,19 +139,19 @@ void setup() {
   mainState = STATE_IDLE; // Start the main loop in idle mode (mosfet off)
   // Initialize the moving average current monitoring
   for (int x=0; x < averageCount; x++){
-      currentCurrentValue = ina219.getCurrent_mA();
-      currentBusVoltage = ina219.getBusVoltage_V();
-      currentShuntVoltage = ina219.getShuntVoltage_mV();
+      movingAverageCurrSum += ina219.getCurrent_mA();
+      movingAverageBusVSum += ina219.getBusVoltage_V();
+      movingAverageShuntVSum += ina219.getShuntVoltage_mV();
+      movingAveragePowerSum += ina219.getPower_mW();
       movingAverageCurrSum += currentCurrentValue; // add in 1 new value
-      movingAverageBusVSum += currentBusVoltage;
-      movingAverageShuntVSum += currentShuntVoltage;
       delay(2);
   }
   movingAverageCurr = movingAverageCurrSum / averageCount; // Calculate average
   movingAverageBusV = movingAverageBusVSum/ averageCount; // Calculate average
   movingAverageShuntV = movingAverageShuntVSum / averageCount; // Calculate average
+  movingAveragePower = movingAveragePowerSum / averageCount; // Calculate average
   loadVoltage = movingAverageBusV + (movingAverageShuntV / 1000); // Average battery voltage
-  Watts = loadVoltage * movingAverageCurr; // Calculate estimated power output, Watts
+  Watts = movingAveragePower / 1000; // Convert estimated power output mW to Watts
   // Enable the watchdog timer so that reset happens if anything stalls
   wdt_enable(WDTO_8S); // Enable 4 or 8 second watchdog timer timeout
   myMillis = millis(); // Initialize
@@ -333,6 +336,7 @@ void PowerSample(Adafruit_INA219& ina219) {
       currentCurrentValue = ina219.getCurrent_mA();
       currentBusVoltage = ina219.getBusVoltage_V();
       currentShuntVoltage = ina219.getShuntVoltage_mV();
+      currentPowerValue = ina219.getPower_mW();
       // Update average current 
       movingAverageCurrSum -= movingAverageCurr; // remove 1 value
       movingAverageCurrSum += currentCurrentValue; // add in 1 new value
@@ -348,7 +352,10 @@ void PowerSample(Adafruit_INA219& ina219) {
       // Update average load voltage
       loadVoltage = movingAverageBusV + (movingAverageShuntV / 1000);
       // Update power output
-      Watts = loadVoltage * (movingAverageCurr / 1000);
+      movingAveragePowerSum -= movingAveragePower;
+      movingAveragePowerSum += currentPowerValue;
+      movingAveragePower = movingAveragePowerSum / averageCount;
+      Watts = movingAveragePower / 1000; // Convert mW to Watts
 }
 
 //----------PrintoledTemps------------------
