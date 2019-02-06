@@ -11,10 +11,12 @@
  *   For use with Tidepool_heater_RevC hardware
  * 
  */
- 
+#include <Wire.h>
+#include <SPI.h>
+#include "RTClib.h" //  https://github.com/millerlp/RTClib
 #include "SSD1306Ascii.h" // https://github.com/greiman/SSD1306Ascii
 #include "SSD1306AsciiWire.h" // https://github.com/greiman/SSD1306Ascii
-#include <INA219.h> // https://github.com/millerlp/INA219
+#include "INA219.h" // https://github.com/millerlp/INA219
 #include <avr/wdt.h>
 //*************************
 #define REVC  // Comment this line out to use Rev A/B hardware
@@ -41,12 +43,17 @@ float minWatts = 29.0;
 SSD1306AsciiWire oled;  // When using Wire library
 #define I2C_ADDRESS 0x3C
 //******************************************
+// Create real time clock object
+RTC_DS3231 rtc;
+//********************************************
 // Timekeeping
 unsigned long myMillis = 0;
 int reportTime = 2000; // milliseconds between serial printouts
 volatile unsigned long button1Time; // hold the initial button press millis() value
 byte debounceTime = 20; // milliseconds to wait for debounce
-byte mediumPressTime = 2000; // milliseconds to hold button1 to register a medium press
+int mediumPressTime = 2000; // milliseconds to hold button1 to register a medium press
+DateTime newtime; // used to track time in main loop
+DateTime oldtime; // used to track time in main loop
 volatile byte buttonFlag = false;
 //******************************
 // Set up INA219 current/voltage monitor (default I2C address is 0x40)
@@ -119,6 +126,27 @@ void setup() {
   setColor(0,0,0);
   Serial.begin(57600);
   Serial.println(F("Hello"));
+  // Initialize the real time clock DS3231M
+  Wire.begin(); // Start the I2C library with default options
+  rtc.begin();  // Start the rtc object with default options
+  printTimeSerial(rtc.now()); // print time to serial monitor
+  Serial.println();
+  newtime = rtc.now();
+  if (newtime.year() < 2019 | newtime.year() > 2035) {
+    // There is an error with the clock, halt everything
+    while(1){
+    // Flash the error led to notify the user
+    // This permanently halts execution, no data will be collected
+      setColor(127,0,0);  // red
+      delay(150);
+      setColor(0,127,0); // green
+      delay(150);
+      setColor(0,0,127); // blue
+      delay(150);
+      setColor(0,0,0);  // off
+      delay(150);
+    } 
+  }
   // ************************************
   // Initialize the OLED display
   oled.begin(&Adafruit128x64, I2C_ADDRESS);  // For 128x64 OLED screen
@@ -131,8 +159,7 @@ void setup() {
   ina219.begin();
   // To use a 32V, 32A range (lower precision on amps):
   ina219.setCalibration_32V_32A();
-
-
+  //********************************************
   attachInterrupt(0, buttonFunc, LOW);  // BUTTON1 interrupt
   buttonFlag = false;
   debounceState = DEBOUNCE_STATE_IDLE;
@@ -165,18 +192,18 @@ void loop() {
   wdt_reset(); 
   // Report current current flow value
   if ( millis() > (myMillis + reportTime) ){
-      Serial.print(F("Average current: "));
-      Serial.print(movingAverageCurr);
-      Serial.print(F("mA\t Voltage:"));
-      Serial.print(loadVoltage);
-      Serial.print(F("V\t PWM setting: "));
-      Serial.print(myPWM);
-      Serial.print(F("\t"));
-      if (mainState == STATE_HEATING){
-        Serial.println("Heating");
-      } else if (mainState == STATE_IDLE){
-        Serial.println("Idle");
-      }
+//      Serial.print(F("Average current: "));
+//      Serial.print(movingAverageCurr);
+//      Serial.print(F("mA\t Voltage:"));
+//      Serial.print(loadVoltage);
+//      Serial.print(F("V\t PWM setting: "));
+//      Serial.print(myPWM);
+//      Serial.print(F("\t"));
+//      if (mainState == STATE_HEATING){
+//        Serial.println("Heating");
+//      } else if (mainState == STATE_IDLE){
+//        Serial.println("Idle");
+//      }
       PrintOLED();
       myMillis = millis(); // update myMillis
       flashFlag = !flashFlag;
@@ -213,7 +240,7 @@ void loop() {
             // DEBOUNCE_STATE_TIME to keep track of how long 
             // the button is held
             debounceState = DEBOUNCE_STATE_TIME;
-            button1Time = millis();
+//            button1Time = millis();
           } else {
             // If button is still pressed, but the debounce 
             // time hasn't elapsed, remain in this state
@@ -237,7 +264,7 @@ void loop() {
         // which state the user wants to enter. 
         unsigned long checkTime = millis(); // get the time
         
-        if (checkTime < (button1Time + mediumPressTime)) {
+        if (checkTime < button1Time + mediumPressTime) {
           Serial.println(F("Short press registered"));
           // User held button briefly, treat as a normal
           // button press, which will be handled differently
@@ -245,11 +272,17 @@ void loop() {
           // For a short press, enter IDLE mode
           mainState = STATE_IDLE;
           buttonFlag = true;
-        } else if ( checkTime > (button1Time + mediumPressTime)) {
+        } else if ( checkTime > button1Time + mediumPressTime) {
           // User held button1 long enough to enter mediumPressTime mode
           // Set main state to HEATING for a long-press
           mainState = STATE_HEATING;
           buttonFlag = true;
+          Serial.print("Long press\t");
+          Serial.print(button1Time);
+          Serial.print("\t");
+          Serial.print(checkTime);
+          Serial.print("\t Diff:");
+          Serial.println(checkTime - button1Time);
         }
         // Now that the button press has been handled, return
         // to DEBOUNCE_STATE_IDLE and await the next button press
@@ -387,4 +420,40 @@ void PrintOLED(void)
   // 5th line
   oled.print(F("PWM: "));
   oled.println(myPWM);
+}
+
+void printTimeSerial(DateTime now){
+//------------------------------------------------
+// printTime function takes a DateTime object from
+// the real time clock and prints the date and time 
+// to the serial monitor. 
+  Serial.print(now.year(), DEC);
+    Serial.print('-');
+  if (now.month() < 10) {
+    Serial.print(F("0"));
+  }
+    Serial.print(now.month(), DEC);
+    Serial.print('-');
+    if (now.day() < 10) {
+    Serial.print(F("0"));
+  }
+  Serial.print(now.day(), DEC);
+    Serial.print(' ');
+  if (now.hour() < 10){
+    Serial.print(F("0"));
+  }
+    Serial.print(now.hour(), DEC);
+    Serial.print(':');
+  if (now.minute() < 10) {
+    Serial.print("0");
+  }
+    Serial.print(now.minute(), DEC);
+    Serial.print(':');
+  if (now.second() < 10) {
+    Serial.print(F("0"));
+  }
+    Serial.print(now.second(), DEC);
+  // You may want to print a newline character
+  // after calling this function i.e. Serial.println();
+
 }
