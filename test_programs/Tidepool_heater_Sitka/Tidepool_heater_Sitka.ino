@@ -1,6 +1,9 @@
 /*  Tidepool_heater_Sitka.ino
     Luke Miller 2019
 
+    Tide predictions for Sitka Alaska, assuming UTC-9 time zone year around
+    Make sure onboard clock is set to UTC-9 time zone, ignore daylight savings time
+
     Status LED:
     Green flash = idle, waiting for proper conditions to begin heating
     Red = active heating
@@ -30,8 +33,7 @@
 float tideHeightThreshold = 7.0; // threshold for low vs high tide, units feet
 float maxWatts = 31.0; // max power output of heater
 float minWatts = 29.0; // minimum power output of heater
-int sunriseHour = 6; // hour for sunrise
-int sunsetHour = 20; // hour for sunset
+
 //***********************************************************************
 //***********************************************************************
 #define REVC  // Comment this line out to use Rev A/B hardware
@@ -72,6 +74,8 @@ byte debounceTime = 20; // milliseconds to wait for debounce
 int mediumPressTime = 2000; // milliseconds to hold button1 to register a medium press
 unsigned long myMillis = 0;
 int reportTime = 2000; // milliseconds between serial printouts
+int sunriseHour = 6; // default hour for sunrise
+int sunsetHour = 20; // default hour for sunset
 bool quitFlag = false; // Flag to quit the heating loop
 //******************************
 // Set up INA219 current/voltage monitor (default I2C address is 0x40)
@@ -90,7 +94,6 @@ float Watts = 0; // Estimated power output, Watts
 // should be ~11.9 at battery with no load
 float voltageMin = 11.35; // units: volts 
 bool lowVoltageFlag = false;
-
 // Variables for the Modified Moving Average
 float movingAverageCurr = 0;
 float movingAverageCurrSum = 0;
@@ -212,6 +215,7 @@ void setup() {
   wdt_enable(WDTO_8S); // Enable 4 or 8 second watchdog timer timeout
   newtime = rtc.now();
   oldtime = newtime;
+  oldday = oldtime.day();
   // Calculate new tide height based on current time
   tideHeightft = myTideCalc.currentTide(newtime);
   myMillis = millis(); // Initialize
@@ -232,6 +236,8 @@ void loop() {
     oldtime = newtime;
     // Calculate new tide height based on current time
     tideHeightft = myTideCalc.currentTide(newtime); 
+    // Call update function to update sunrise/sunset values, if needed
+    updateSunriseSunset(newtime, oldday); 
   }
   // Report current current flow value if the reportTime interval has elapsed
   if ( millis() > (myMillis + reportTime) ){
@@ -482,6 +488,8 @@ void PrintOLED(void)
     oled.print(F("IDLE"));
   } else if (mainState == STATE_HEATING){
     oled.print(F("HEATING"));
+  } else if (mainState == STATE_OFF){
+    oled.print(F("Replace battery"));
   }
   oled.println();
   // 2nd line
@@ -496,12 +504,55 @@ void PrintOLED(void)
   // 5th line
   oled.print(F("PWM: "));
   oled.println(myPWM);
+  // 6th line
+  oled.print(F("Tide ft:"));
+  oled.println(tideHeightft);
+  // 7th line
+  printTimeOLED(newtime);
 }
+
+//-----------printTimeOLED------------------------
+void printTimeOLED(DateTime now){
+//------------------------------------------------
+// printTimeOLED function takes a DateTime object from
+// the real time clock and prints the date and time 
+// to the OLED display. 
+  oled.print(now.year(), DEC);
+    oled.print('-');
+  if (now.month() < 10) {
+    oled.print(F("0"));
+  }
+    oled.print(now.month(), DEC);
+    oled.print('-');
+    if (now.day() < 10) {
+    oled.print(F("0"));
+  }
+  oled.print(now.day(), DEC);
+    oled.print(' ');
+  if (now.hour() < 10){
+    oled.print(F("0"));
+  }
+    oled.print(now.hour(), DEC);
+    oled.print(':');
+  if (now.minute() < 10) {
+    oled.print("0");
+  }
+    oled.print(now.minute(), DEC);
+    oled.print(':');
+  if (now.second() < 10) {
+    oled.print(F("0"));
+  }
+    oled.print(now.second(), DEC);
+  // You may want to print a newline character
+  // after calling this function i.e. oled.println();
+
+}
+
 
 //-----------printTimeSerial------------------------
 void printTimeSerial(DateTime now){
 //------------------------------------------------
-// printTime function takes a DateTime object from
+// printTimeSerial function takes a DateTime object from
 // the real time clock and prints the date and time 
 // to the serial monitor. 
   Serial.print(now.year(), DEC);
@@ -532,5 +583,86 @@ void printTimeSerial(DateTime now){
     Serial.print(now.second(), DEC);
   // You may want to print a newline character
   // after calling this function i.e. Serial.println();
+
+}
+
+
+//--------------updateSunriseSunset---------------------------------
+/*! updateSunriseSunset function
+ *  @param DateTime newtime - date/time object from real time clock
+ *  @param byte oldday - numeric value of previous day
+ * 
+ */
+void updateSunriseSunset(DateTime newtime, byte oldday){
+  if (oldday != newtime.day()){
+        // If we've turned over a new day, check to see if it's a new 
+        // month, and if so we can adjust the sunrise/sunset hours
+        oldday = newtime.day(); // update oldday
+        // Set sunriseHour and sunsetHour to roughly encompass the
+        // Sitka Alaska day lengths, all in UTC-9 time zone
+        switch(newtime.month()){
+          case 1:
+            // January
+            sunriseHour = 9;
+            sunsetHour = 15;
+          break;
+          case 2:
+            // February            
+            sunriseHour = 8;
+            sunsetHour = 16;
+          break;
+          case 3:
+            // March
+            sunriseHour = 7;
+            sunsetHour = 17;
+          break;
+          case 4:
+            // April
+            sunriseHour = 6;
+            sunsetHour = 18;
+          break;
+          case 5:
+            // May
+            sunriseHour = 5;
+            sunsetHour = 19;
+          break;
+          case 6:
+            // June
+            sunriseHour = 4;
+            sunsetHour = 20;
+          break;
+          case 7:
+            // July
+            sunriseHour = 4;
+            sunsetHour = 20;
+          break;
+          case 8:
+            // August
+            sunriseHour = 5;
+            sunsetHour = 20;
+          break;
+          case 9:
+            // September
+            sunriseHour = 6;
+            sunsetHour = 18;
+          break;
+          case 10:
+            // October
+            sunriseHour = 7;
+            sunsetHour = 17;
+          break;
+          case 11:
+            // November
+            sunriseHour = 8;
+            sunsetHour = 16;
+          break;
+          case 12:
+            // December
+            sunriseHour = 9;
+            sunsetHour = 15;
+          break;
+          
+        } // end of switch(newtime.month())
+      }
 
 }
