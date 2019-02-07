@@ -6,8 +6,8 @@
 
     Status LED:
     Green flash = idle, waiting for proper conditions to begin heating
-    Red = active heating
-    Yellow flash = battery voltage low, replace batteries
+    Red flash = active heating
+    Purple flash = battery voltage low, replace batteries
 
     Designed for Revision C tidepool heater hardware, loaded with 
     Optiboot bootloader (6.2 or higher).
@@ -404,7 +404,7 @@ void loop() {
       myPWM = 0; // Set pwm value to zero 
       analogWrite(MOSFET, myPWM); // Make sure heater is off
       if (flashFlag){
-        setColor(115,127,0); // flash yellow color
+        setColor(80,0,80); // flash purple color
       } else if (!flashFlag) {
         setColor(0,0,0); // turn off LED
       }
