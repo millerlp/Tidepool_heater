@@ -24,6 +24,7 @@
 #include <avr/wdt.h>
 #include "RTClib.h"  // https://github.com/millerlp/RTClib
 #include "TidelibSitkaBaronofIslandSitkaSoundAlaska.h"
+#include "LowPower.h" // https://github.com/rocketscream/Low-Power/
 //***********************************************************************
 //*******Customization variables*****************************************
 float tideHeightThreshold = 7.0; // threshold for low vs high tide, units feet
@@ -388,8 +389,12 @@ void loop() {
       }
 
     break; // end of STATE_HEATING case
-
+    //***********************************************
+    // STATE_OFF handles the case when the lowVoltageFlag is true,
+    // and forces the device into a waiting mode that it can't escape
+    // from without user intervention (reset or button press).
     case STATE_OFF:
+      wdt_disable(); // Turn off the watchdog timer that was running
       myPWM = 0; // Set pwm value to zero 
       analogWrite(MOSFET, myPWM); // Make sure heater is off
       if (flashFlag){
@@ -397,30 +402,18 @@ void loop() {
       } else if (!flashFlag) {
         setColor(0,0,0); // turn off LED
       }
-      
+      // Enter a lower power idle mode to save a little power
+      LowPower.idle(SLEEP_2S, ADC_OFF, TIMER2_ON, TIMER1_ON, TIMER0_ON, SPI_OFF,
+            USART0_ON, TWI_ON);
     break;
-      /*  To do:
-       *   Check if it's a new minute, if so re-calculate tide
-       *   STATE_HEATING: If heater is on (STATE_HEATING), recalculate 
-       *   average current and voltage to calculate power output, 
-       *   adjust PWM signal to MOSFET. Also check that battery voltage 
-       *   is above voltageMin
-       *   
-       *   STATE_IDLE: If heater is off (STATE_IDLE), check if conditions 
-       *   are met to turn on heater (daytime, sufficient battery voltage, 
-       *   predicted tide height below threshold height), and change state 
-       *   to STATE_HEATING, else remain in STATE_IDLE
-       *   
-       *   STATE_OFF: If lowVoltageFlag is set, batteries need replacing, go into 
-       *   low power mode, pulse LED to notify user. 
-       * 
-       */
-
   }
 
   
 } // End of main loop
 
+//----------------Functions----------------------------------------------------
+
+//-----------------------------------------------------------------------------
 //--------------- buttonFunc --------------------------------------------------
 // buttonFunc
 void buttonFunc(void){
