@@ -37,7 +37,6 @@ float minWatts = 29.0; // minimum power output of heater
 //***********************************************************************
 //***********************************************************************
 #define REVC  // Comment this line out to use Rev A/B hardware
-
 // Change pin assignments based on hardware Revision
 #ifdef REVC
 #define ONE_WIRE_BUS 8  // For Rev C hardware
