@@ -240,7 +240,6 @@ void loop() {
             // DEBOUNCE_STATE_TIME to keep track of how long 
             // the button is held
             debounceState = DEBOUNCE_STATE_TIME;
-//            button1Time = millis();
           } else {
             // If button is still pressed, but the debounce 
             // time hasn't elapsed, remain in this state
