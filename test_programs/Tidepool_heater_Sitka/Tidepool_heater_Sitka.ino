@@ -1,6 +1,11 @@
 /*  Tidepool_heater_Sitka.ino
     Luke Miller 2019
 
+    Status LED:
+    Green flash = idle, waiting for proper conditions to begin heating
+    Red = active heating
+    Yellow flash = battery voltage low, replace batteries
+
     Designed for Revision C tidepool heater hardware, loaded with 
     Optiboot bootloader (6.2 or higher).
 
@@ -13,14 +18,21 @@
 //#include <OneWire.h>  // https://github.com/PaulStoffregen/OneWire
 //#include <DallasTemperature.h> // https://github.com/milesburton/Arduino-Temperature-Control-Library
 //#include <SdFat.h>  // https://github.com/greiman/SdFat
-//#include "SSD1306Ascii.h" // https://github.com/greiman/SSD1306Ascii
-//#include "SSD1306AsciiWire.h" // https://github.com/greiman/SSD1306Ascii
-#include <INA219.h> // https://github.com/millerlp/INA219
+#include "SSD1306Ascii.h" // https://github.com/greiman/SSD1306Ascii
+#include "SSD1306AsciiWire.h" // https://github.com/greiman/SSD1306Ascii
+#include "INA219.h" // https://github.com/millerlp/INA219
 #include <avr/wdt.h>
 #include "RTClib.h"  // https://github.com/millerlp/RTClib
 #include "TidelibSitkaBaronofIslandSitkaSoundAlaska.h"
-
-//*************************
+//***********************************************************************
+//*******Customization variables*****************************************
+float tideHeightThreshold = 7.0; // threshold for low vs high tide, units feet
+float maxWatts = 31.0; // max power output of heater
+float minWatts = 29.0; // minimum power output of heater
+int sunriseHour = 6; // hour for sunrise
+int sunsetHour = 20; // hour for sunset
+//***********************************************************************
+//***********************************************************************
 #define REVC  // Comment this line out to use Rev A/B hardware
 
 // Change pin assignments based on hardware Revision
@@ -38,21 +50,37 @@
 #define GRNLED 5 // Green LED
 #define BLULED 6 // Blue LED
 //******************************************
+// Define the OLED display object
+SSD1306AsciiWire oled;  // When using Wire library
+#define I2C_ADDRESS 0x3C
+//*********************************************
+// Tide calculator setup
+TideCalc myTideCalc; // Create TideCalc object called myTideCalc
+float tideHeightft; // Hold results of tide calculation, units feet
+//******************************************
 // Timekeeping
+// Create real time clock object
+RTC_DS3231 rtc;
+char buf[20]; // declare a string buffer to hold the time result
+DateTime newtime;
+DateTime oldtime; // used to track time in main loop
+byte oldday;     // used to keep track of midnight transition
+byte rtcErrorFlag = false;
+volatile unsigned long button1Time; // hold the initial button press millis() value
+byte debounceTime = 20; // milliseconds to wait for debounce
+int mediumPressTime = 2000; // milliseconds to hold button1 to register a medium press
 unsigned long myMillis = 0;
-unsigned long maxHeatTime = 5 ; // time heater is allowed to run (HOURS)
-unsigned long updateTime = 2; // time to update Serial monitor (seconds)
-//unsigned long SDupdateTime = 10; // time to write data to SD card (seconds)
-unsigned long lastTime = 0; // variable to keep previous time value
-//unsigned long lastSDTime = 0; // variable to keep previous SD write time value
+int reportTime = 2000; // milliseconds between serial printouts
 bool quitFlag = false; // Flag to quit the heating loop
 //******************************
 // Set up INA219 current/voltage monitor (default I2C address is 0x40)
 Adafruit_INA219 ina219(0x40);
-float shuntvoltage = 0; // Voltage drop across shunt resistor (0.01ohm on heater board)
-float busvoltage = 0;  // Voltage at the load (heater)
-float current_mA = 0;
-float loadvoltage = 0;  // Estimated battery voltage (prior to the shunt resistor + load)
+float currentShuntVoltage = 0; // Voltage drop across shunt resistor (0.01ohm on heater board)
+float currentBusVoltage = 0;  // Voltage at the load (heater)
+float currentCurrentValue = 0; // Current in mA
+float currentPowerValue = 0; // Power in mW
+float loadVoltage = 0;  // Estimated battery voltage (prior to the shunt resistor + load)
+float Watts = 0; // Estimated power output, Watts
 // Define a minimum safe voltage for the battery
 // Target final voltage of 11.9V at battery (no load)
 // With schottky diode, no load voltage drop is ~0.15V, and ~0.45V under load
@@ -61,24 +89,22 @@ float loadvoltage = 0;  // Estimated battery voltage (prior to the shunt resisto
 // should be ~11.9 at battery with no load
 float voltageMin = 11.35; // units: volts 
 bool lowVoltageFlag = false;
-//***********************************
-// Create real time clock object
-RTC_DS3231 rtc;
-char buf[20]; // declare a string buffer to hold the time result
-DateTime newtime;
-DateTime oldtime; // used to track time in main loop
-byte oldday;     // used to keep track of midnight transition
-byte rtcErrorFlag = false;
-//DateTime buttonTime; // hold the time since the button was pressed
-//DateTime chooseTime; // hold the time stamp when a waiting period starts
-volatile unsigned long buttonTime1; // hold the initial button press millis() value
-byte debounceTime = 20; // milliseconds to wait for debounce
-byte mediumPressTime = 2; // seconds to hold button1 to register a medium press
-//***************************
-// Temperature variables
-//float maxTempC = 37.0; // maximum temperature (C) allowed before shutting off heater
-//float warmWaterTempC = 0; // current heated water temperature
-//float ambientWaterTempC = 0; // ambient water temperature
+
+// Variables for the Modified Moving Average
+float movingAverageCurr = 0;
+float movingAverageCurrSum = 0;
+float movingAverageBusV = 0;
+float movingAverageBusVSum = 0;
+float movingAverageShuntV = 0;
+float movingAverageShuntVSum = 0;
+float movingAveragePower = 0;
+float movingAveragePowerSum = 0;
+// Number of samples for moving average:
+const byte averageCount = 100;
+word myPWM = 0; // 0-255 pulse width modulation value for MOSFET
+word maxPWM = 255; // 0-255, 255 is full-on, 0 is off
+byte flashFlag = false; // Used to flash LED
+
 
 // ***** TYPE DEFINITIONS *****
 typedef enum STATE
@@ -116,7 +142,7 @@ void setup() {
   digitalWrite(BLULED, HIGH);
   // Flash green LED to denote startup
   setColor(0, 127, 0);
-  delay(100);
+  delay(200);
   setColor(0,0,0);
   // Start serial port
   Serial.begin(57600);
@@ -125,31 +151,31 @@ void setup() {
   // Initialize the real time clock DS3231M
   Wire.begin(); // Start the I2C library with default options
   rtc.begin();  // Start the rtc object with default options
+  printTimeSerial(rtc.now()); // print time to serial monitor
+  Serial.println();
   newtime = rtc.now(); // read a time from the real time clock
-  newtime.toString(buf, 20); 
   //***********************************************
   // Check that real time clock has a reasonable time value
-  if ( (newtime.year() < 2019) | (newtime.year() > 2035) ) {
+  if (newtime.year() < 2019 | newtime.year() > 2035) {
     // There is an error with the clock, halt everything
-    Serial.println(F("Clock error, reprogram real time clock"));
-
-    rtcErrorFlag = true;
-    while(rtcErrorFlag){
+    while(1){
     // Flash the error led to notify the user
     // This permanently halts execution, no data will be collected
-      for (int i = 0; i < 3; i++){
-        setColor(60,60,0);
-        delay(50);
-        setColor(0,0,0);
-        delay(50);
-      }
-      delay(500);              
-    } // end of while(rtcErrorFlag)
-  } else {
-    Serial.println(F("Clock okay"));
-    Serial.println(buf);
-  } // end of if ( (newtime.year() < 2019) | (newtime.year() > 2035) )
-
+      setColor(127,0,0);  // red
+      delay(150);
+      setColor(0,127,0); // green
+      delay(150);
+      setColor(0,0,127); // blue
+      delay(150);
+      setColor(0,0,0);  // off
+      delay(150);
+    } // while loop end
+  }
+  // ************************************
+  // Initialize the OLED display
+  oled.begin(&Adafruit128x64, I2C_ADDRESS);  // For 128x64 OLED screen
+  oled.setFont(Adafruit5x7);
+  oled.clear();  
   //*******************************
   // Initialize the INA219.
   // By default the initialization will use the range (32V, 2A).  However
@@ -158,31 +184,75 @@ void setup() {
   // To use a 32V, 32A range (lower precision on amps):
   ina219.setCalibration_32V_32A();
   //********************************
-  shuntvoltage = ina219.getShuntVoltage_mV();
-
-  loadvoltage = busvoltage + (shuntvoltage / 1000);
-  // Enable the watchdog timer so that reset happens if anything stalls
-  wdt_enable(WDTO_8S); // Enable 4 or 8 second watchdog timer timeout
 
   attachInterrupt(0, buttonFunc, LOW);  // BUTTON1 interrupt
-  buttonFlag = false;
   newtime = rtc.now(); // get time
   oldtime = newtime;    // store time
   oldday = oldtime.day(); // Store current day value
   debounceState = DEBOUNCE_STATE_IDLE;
   mainState = STATE_IDLE; // Start the main loop in idle mode (mosfet off)
+  // Initialize the moving average current monitoring
+  for (int x=0; x < averageCount; x++){
+      movingAverageCurrSum += ina219.getCurrent_mA();
+      movingAverageBusVSum += ina219.getBusVoltage_V();
+      movingAverageShuntVSum += ina219.getShuntVoltage_mV();
+      movingAveragePowerSum += ina219.getPower_mW();
+      movingAverageCurrSum += currentCurrentValue; // add in 1 new value
+      delay(2);
+  }
+  movingAverageCurr = movingAverageCurrSum / averageCount; // Calculate average
+  movingAverageBusV = movingAverageBusVSum/ averageCount; // Calculate average
+  movingAverageShuntV = movingAverageShuntVSum / averageCount; // Calculate average
+  movingAveragePower = movingAveragePowerSum / averageCount; // Calculate average
+  loadVoltage = movingAverageBusV + (movingAverageShuntV / 1000); // Average battery voltage
+  Watts = movingAveragePower / 1000; // Convert estimated power output mW to Watts
+  
+  // Enable the watchdog timer so that reset happens if anything stalls
+  wdt_enable(WDTO_8S); // Enable 4 or 8 second watchdog timer timeout
+  newtime = rtc.now();
+  oldtime = newtime;
+  // Calculate new tide height based on current time
+  tideHeightft = myTideCalc.currentTide(newtime);
+  myMillis = millis(); // Initialize
+  
 } // End of setup loop
 
 
 //*************************************************************************
 //*************************************************************************
 void loop() {
-  // Always start the loop by checking the time
-  newtime = rtc.now(); // Grab the current time 
-  // Also reset the watchdog timer every time the loop loops
-  wdt_reset(); 
+  // Reset the watchdog timer every time the loop loops
+  wdt_reset();
+  // Update time and check if a new minute has started
+  newtime = rtc.now();
+  if ( newtime.minute() != oldtime.minute() ) {
+    // If the minute values don't match, a new minute has turned over
+    // Recalculate tide height, update oldtime
+    oldtime = newtime;
+    // Calculate new tide height based on current time
+    tideHeightft = myTideCalc.currentTide(newtime); 
+  }
+  // Report current current flow value if the reportTime interval has elapsed
+  if ( millis() > (myMillis + reportTime) ){
+//      Serial.print(F("Average current: "));
+//      Serial.print(movingAverageCurr);
+//      Serial.print(F("mA\t Voltage:"));
+//      Serial.print(loadVoltage);
+//      Serial.print(F("V\t PWM setting: "));
+//      Serial.print(myPWM);
+//      Serial.print(F("\t"));
+//      if (mainState == STATE_HEATING){
+//        Serial.println("Heating");
+//      } else if (mainState == STATE_IDLE){
+//        Serial.println("Idle");
+//      }
+      PrintOLED();
+      myMillis = millis(); // update myMillis
+      flashFlag = !flashFlag;
+  } 
+ 
   //-------------------------------------------------------------
-  // Begin loop by checking the debounceState to 
+  // Check the debounceState to 
   // handle any button presses
   switch (debounceState) {
     // debounceState should normally start off as 
@@ -199,13 +269,12 @@ void loop() {
       // DEBOUNCE_STATE_CHECK by the buttonFunc interrupt,
       // check if the button is still pressed
       if (digitalRead(BUTTON1) == LOW) {
-          if (millis() > buttonTime1 + debounceTime) {
+          if (millis() > button1Time + debounceTime) {
             // If the button has been held long enough to 
             // be a legit button press, switch to 
             // DEBOUNCE_STATE_TIME to keep track of how long 
             // the button is held
             debounceState = DEBOUNCE_STATE_TIME;
-            buttonTime = rtc.now();
           } else {
             // If button is still pressed, but the debounce 
             // time hasn't elapsed, remain in this state
@@ -216,7 +285,6 @@ void loop() {
           // case in DEBOUNCE_STATE_CHECK, it was a false trigger
           // Reset the debounceState
           debounceState = DEBOUNCE_STATE_IDLE;
-          buttonFlag = false;
           // Restart the button1 interrupt
           attachInterrupt(0, buttonFunc, LOW);
         }
@@ -228,18 +296,18 @@ void loop() {
         // long the button was depressed. This will determine
         // which state the user wants to enter. 
 
-        DateTime checkTime = rtc.now(); // get the time
+        unsigned long checkTime = millis(); // get the time
         
-        if (checkTime.unixtime() < (buttonTime.unixtime() + mediumPressTime)) {
-          Serial.println(F("Short press registered"));
+        if (checkTime < (button1Time + mediumPressTime)) {
+//          Serial.println(F("Short press registered"));
           // User held button briefly, treat as a normal
           // button press, which will be handled differently
           // depending on which mainState the program is in.
-          buttonFlag = true;
-        } else if ( (checkTime.unixtime() > (buttonTime.unixtime() + mediumPressTime)){
+          mainState = STATE_IDLE;
+        } else if ( checkTime > (button1Time + mediumPressTime)){
           // User held button1 long enough to enter mediumPressTime mode
           // Set state to STATE_ENTER_CALIB
-          mainState = STATE_ENTER_CALIB;
+          mainState = STATE_HEATING;
         }
         // Now that the button press has been handled, return
         // to DEBOUNCE_STATE_IDLE and await the next button press
@@ -258,6 +326,79 @@ void loop() {
   //-------------------------------------------------------------
   //-------------------------------------------------------------
   switch(mainState){
+    case STATE_IDLE:
+      myPWM = 0; // Set pwm value to zero 
+      analogWrite(MOSFET, myPWM); // Make sure heater is off
+      PowerSample(ina219); // Update power usage values
+      if (flashFlag) {
+        // Turn on green LED
+        setColor(0,127,0);
+      } else if (!flashFlag){
+        // Turn off green LED
+        setColor(0,0,0);
+      }
+      // Check and see if conditions are appropriate for turning the
+      // heater on. If the predicted tide height is less than the
+      // tideHeightThreshold, and time is later than sunriseHour and
+      // earlier than sunsetHour, and the lowVoltageflag is still false
+      // then the heating can begin. 
+      if ( (tideHeightft < tideHeightThreshold) & 
+        (newtime.hour() > sunriseHour) &
+        (newtime.hour() < sunsetHour) & !lowVoltageFlag){
+          mainState = STATE_HEATING;  // Switch to heating mode
+      }
+    break; // end of STATE_IDLE case
+    //**********************************
+    // You can arrive at STATE_HEATING via one of 2 paths, either
+    // because the user pressed button1 long enough to trigger the 
+    // state change, or because the heating conditions were satisfied
+    // in the STATE_IDLE case. 
+    case STATE_HEATING:
+      analogWrite(MOSFET, myPWM);
+      PowerSample(ina219); // Sample INA219 and update current,voltage,power variables
+      if (flashFlag) {
+        // Turn on red LED
+        setColor(127,0,0);
+      } else if (!flashFlag){
+        // Turn off red LED
+        setColor(0,0,0);
+      }
+      // If heater power is on, make sure voltageMin hasn't been passed
+      if (loadVoltage > voltageMin) {
+        // If the loadVoltage is still above voltageMin, then continue
+        // heating, adjust power output if necessary
+        if (Watts > minWatts & Watts < maxWatts){
+          // Wattage is within desired range, do nothing
+        } else if (Watts < minWatts) {
+          // Wattage is low, adjust PWM value up
+          if (myPWM < maxPWM) {
+            myPWM += 1;
+          }
+        } else if (Watts > maxWatts) {
+          // Wattage is high, lower PWM value
+          if (myPWM > 0) {
+            myPWM -= 1;
+          }
+        }         
+      } else {
+        // if loadVoltage less than voltageMin, shut off the heater to 
+        // preserve the battery.
+        mainState = STATE_OFF;
+        lowVoltageFlag = true; // Set the lowVoltageFlag true to avoid further heating
+      }
+
+    break; // end of STATE_HEATING case
+
+    case STATE_OFF:
+      myPWM = 0; // Set pwm value to zero 
+      analogWrite(MOSFET, myPWM); // Make sure heater is off
+      if (flashFlag){
+        setColor(115,127,0); // flash yellow color
+      } else if (!flashFlag) {
+        setColor(0,0,0); // turn off LED
+      }
+      
+    break;
       /*  To do:
        *   Check if it's a new minute, if so re-calculate tide
        *   STATE_HEATING: If heater is on (STATE_HEATING), recalculate 
@@ -274,11 +415,7 @@ void loop() {
        *   low power mode, pulse LED to notify user. 
        * 
        */
-    
-    case STATE_RUN:
 
-
-    break; // end of STATE_RUN case
   }
 
   
@@ -288,7 +425,7 @@ void loop() {
 // buttonFunc
 void buttonFunc(void){
   detachInterrupt(0); // Turn off the interrupt
-  buttonTime1 = millis();
+  button1Time = millis();
   debounceState = DEBOUNCE_STATE_CHECK; // Switch to new debounce state
 }
 //-----------------setColor---------------------
@@ -303,4 +440,104 @@ void setColor(int red, int green, int blue)
   analogWrite(REDLED, red);
   analogWrite(GRNLED, green);
   analogWrite(BLULED, blue);  
+}
+
+//---------------PowerSample-----------------------------
+// Function to sample the INA219 current monitor, update
+// the moving average values, and update the average
+// current, system voltage, and power output. This assumes
+// a lot of global variables
+void PowerSample(Adafruit_INA219& ina219) {
+      currentCurrentValue = ina219.getCurrent_mA();
+      currentBusVoltage = ina219.getBusVoltage_V();
+      currentShuntVoltage = ina219.getShuntVoltage_mV();
+      currentPowerValue = ina219.getPower_mW();
+      // Update average current 
+      movingAverageCurrSum -= movingAverageCurr; // remove 1 value
+      movingAverageCurrSum += currentCurrentValue; // add in 1 new value
+      movingAverageCurr = movingAverageCurrSum / averageCount; // recalculate average
+      // Update average bus voltage
+      movingAverageBusVSum -= movingAverageBusV;
+      movingAverageBusVSum += currentBusVoltage;
+      movingAverageBusV = movingAverageBusVSum / averageCount;
+      // Update average shunt voltage
+      movingAverageShuntVSum -= movingAverageShuntV;
+      movingAverageShuntVSum += currentShuntVoltage;
+      movingAverageShuntV = movingAverageShuntVSum / averageCount;
+      // Update average load voltage
+      loadVoltage = movingAverageBusV + (movingAverageShuntV / 1000);
+      // Update power output
+      movingAveragePowerSum -= movingAveragePower;
+      movingAveragePowerSum += currentPowerValue;
+      movingAveragePower = movingAveragePowerSum / averageCount;
+      Watts = movingAveragePower / 1000; // Convert mW to Watts
+}
+
+
+//----------PrintOLED------------------
+/* Function to print current + voltage
+ *  to the OLED display.
+ *  After calling this function send another
+ *  oled.println() call if you need to write
+ *  a 4th line of info
+ */
+void PrintOLED(void)
+{
+  oled.clear();
+  oled.print(F("Status: "));
+  if (mainState == STATE_IDLE){
+    oled.print(F("IDLE"));
+  } else if (mainState == STATE_HEATING){
+    oled.print(F("HEATING"));
+  }
+  oled.println();
+  // 2nd line
+  oled.print(F("Volts: "));
+  oled.println(loadVoltage);
+  // 3rd line, show battery current
+  oled.print(F("mA: "));
+  oled.println(movingAverageCurr);
+  // 4th line, show Wattage
+  oled.print(F("Watts: "));
+  oled.println(Watts);
+  // 5th line
+  oled.print(F("PWM: "));
+  oled.println(myPWM);
+}
+
+//-----------printTimeSerial------------------------
+void printTimeSerial(DateTime now){
+//------------------------------------------------
+// printTime function takes a DateTime object from
+// the real time clock and prints the date and time 
+// to the serial monitor. 
+  Serial.print(now.year(), DEC);
+    Serial.print('-');
+  if (now.month() < 10) {
+    Serial.print(F("0"));
+  }
+    Serial.print(now.month(), DEC);
+    Serial.print('-');
+    if (now.day() < 10) {
+    Serial.print(F("0"));
+  }
+  Serial.print(now.day(), DEC);
+    Serial.print(' ');
+  if (now.hour() < 10){
+    Serial.print(F("0"));
+  }
+    Serial.print(now.hour(), DEC);
+    Serial.print(':');
+  if (now.minute() < 10) {
+    Serial.print("0");
+  }
+    Serial.print(now.minute(), DEC);
+    Serial.print(':');
+  if (now.second() < 10) {
+    Serial.print(F("0"));
+  }
+    Serial.print(now.second(), DEC);
+  // You may want to print a newline character
+  // after calling this function i.e. Serial.println();
+
 }
