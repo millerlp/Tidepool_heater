@@ -76,6 +76,8 @@ int reportTime = 2000; // milliseconds between serial printouts
 int sunriseHour = 6; // default hour for sunrise
 int sunsetHour = 20; // default hour for sunset
 bool quitFlag = false; // Flag to quit the heating loop
+DateTime startTime;
+DateTime endTime;
 //******************************
 // Set up INA219 current/voltage monitor (default I2C address is 0x40)
 Adafruit_INA219 ina219(0x40);
@@ -314,6 +316,7 @@ void loop() {
           // User held button1 long enough to enter mediumPressTime mode
           // Set state to STATE_ENTER_CALIB
           mainState = STATE_HEATING;
+          startTime = rtc.now(); // record start time
         }
         // Now that the button press has been handled, return
         // to DEBOUNCE_STATE_IDLE and await the next button press
@@ -391,6 +394,7 @@ void loop() {
         // preserve the battery.
         mainState = STATE_OFF;
         lowVoltageFlag = true; // Set the lowVoltageFlag true to avoid further heating
+        endTime = rtc.now(); // record finishing time
       }
 
     break; // end of STATE_HEATING case
@@ -508,6 +512,12 @@ void PrintOLED(void)
   oled.println(tideHeightft);
   // 7th line
   printTimeOLED(newtime);
+  // 8th line, run time
+  if (mainState == STATE_OFF){
+    oled.println();
+    oled.print(F("Run time, mins: "));
+    oled.print( (endTime.unixtime() - startTime.unixtime()) / 60);
+  }
 }
 
 //-----------printTimeOLED------------------------
