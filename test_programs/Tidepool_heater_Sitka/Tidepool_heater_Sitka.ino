@@ -8,6 +8,7 @@
     Green flash = idle, waiting for proper conditions to begin heating
     Red flash = active heating
     Purple flash = battery voltage low, replace batteries
+    Fast white flash = heater failure, reboot and check heater
 
     Designed for Revision C tidepool heater hardware, loaded with 
     Optiboot bootloader (6.2 or higher).
@@ -108,8 +109,10 @@ float movingAveragePowerSum = 0;
 const byte averageCount = 100;
 word myPWM = 0; // 0-255 pulse width modulation value for MOSFET
 word maxPWM = 255; // 0-255, 255 is full-on, 0 is off
-byte flashFlag = false; // Used to flash LED
-
+bool flashFlag = false; // Used to flash LED
+bool heaterFailFlag = false; // Used to indicate failed heater
+bool errorFlashFlag = false; // Used to toggle heater fail flashing
+int failCounter = 0; // Used to keep track of how long failure has gone on
 
 // ***** TYPE DEFINITIONS *****
 typedef enum STATE
@@ -194,8 +197,11 @@ void setup() {
   newtime = rtc.now(); // get time
   oldtime = newtime;    // store time
   oldday = oldtime.day(); // Store current day value
-  debounceState = DEBOUNCE_STATE_IDLE;
-  mainState = STATE_IDLE; // Start the main loop in idle mode (mosfet off)
+
+
+  // Test the attached heater, current should be > 1000mA
+  // Turn on heater mosfet full-on
+  analogWrite(MOSFET, 255);
   // Initialize the moving average current monitoring
   for (int x=0; x < averageCount; x++){
       movingAverageCurrSum += ina219.getCurrent_mA();
@@ -203,20 +209,34 @@ void setup() {
       movingAverageShuntVSum += ina219.getShuntVoltage_mV();
       movingAveragePowerSum += ina219.getPower_mW();
       movingAverageCurrSum += currentCurrentValue; // add in 1 new value
-      delay(2);
+      delay(1);
   }
-  movingAverageCurr = movingAverageCurrSum / averageCount; // Calculate average
-  movingAverageBusV = movingAverageBusVSum/ averageCount; // Calculate average
-  movingAverageShuntV = movingAverageShuntVSum / averageCount; // Calculate average
-  movingAveragePower = movingAveragePowerSum / averageCount; // Calculate average
+  movingAverageCurr = movingAverageCurrSum / averageCount; // Calculate average, mA
+  movingAverageBusV = movingAverageBusVSum/ averageCount; // Calculate average, Volts
+  movingAverageShuntV = movingAverageShuntVSum / averageCount; // Calculate average, mV
+  movingAveragePower = movingAveragePowerSum / averageCount; // Calculate average, mW
   loadVoltage = movingAverageBusV + (movingAverageShuntV / 1000); // Average battery voltage
   Watts = movingAveragePower / 1000; // Convert estimated power output mW to Watts
-  
+  if (movingAverageCurr < 1000){
+    heaterFailFlag = true;
+    for (int i = 0; i<5; i++){
+      setColor(255,255,255);
+      delay(20);
+      setColor(0,0,0);
+      delay(50);
+    }
+  }
+  analogWrite(MOSFET, 0); // turn heater mosfet off
+  //------------------------
+  debounceState = DEBOUNCE_STATE_IDLE;
+  mainState = STATE_IDLE; // Start the main loop in idle mode (mosfet off)
   // Enable the watchdog timer so that reset happens if anything stalls
   wdt_enable(WDTO_8S); // Enable 4 or 8 second watchdog timer timeout
   newtime = rtc.now();
   oldtime = newtime;
   oldday = oldtime.day();
+  startTime = newtime;
+  endTime = newtime;
   // Calculate new tide height based on current time
   tideHeightft = myTideCalc.currentTide(newtime);
   myMillis = millis(); // Initialize
@@ -257,6 +277,9 @@ void loop() {
       PrintOLED();
       myMillis = millis(); // update myMillis
       flashFlag = !flashFlag;
+      if (heaterFailFlag){
+        errorFlashFlag = true; // toggle error flash
+      }
   } 
  
   //-------------------------------------------------------------
@@ -340,6 +363,14 @@ void loop() {
       analogWrite(MOSFET, myPWM); // Make sure heater is off
       PowerSample(ina219); // Update power usage values
       if (flashFlag) {
+        if (heaterFailFlag & errorFlashFlag){
+          for (int i = 0; i<5;i++){
+            setColor(127,127,127);
+            delay(10);
+            setColor(0,0,0);
+            delay(50);
+          }
+        }
         // Turn on green LED
         setColor(0,127,0);
       } else if (!flashFlag){
@@ -383,6 +414,17 @@ void loop() {
           if (myPWM < maxPWM) {
             myPWM += 1;
           }
+          if (myPWM == 255 & Watts < 1.0){
+            // If the heater mosfet is fully on (255) and power usage
+            // is still less than 1 Watt, the heater is probably broken
+            // Increment the failure counter
+            failCounter++;
+            if (failCounter > 2000){
+              // If enough failure cycles occur, shut it down
+              heaterFailFlag = true; // set the failure flag
+              mainState = STATE_OFF; // shut it down
+            } 
+          }
         } else if (Watts > maxWatts) {
           // Wattage is high, lower PWM value
           if (myPWM > 0) {
@@ -407,13 +449,26 @@ void loop() {
       myPWM = 0; // Set pwm value to zero 
       analogWrite(MOSFET, myPWM); // Make sure heater is off
       if (flashFlag){
-        setColor(80,0,80); // flash purple color
+        if (heaterFailFlag & errorFlashFlag){
+          for (byte i = 0; i < 5 ; i++){
+            setColor(127,127,127); // flash white quickly
+            delay(10);
+            setColor(0,0,0);
+            delay(50);
+          }
+          errorFlashFlag = false; // toggle error flash off
+        }
+        if (lowVoltageFlag){
+         setColor(80,0,80); // flash purple color  
+        }
+        
       } else if (!flashFlag) {
         setColor(0,0,0); // turn off LED
       }
       // Enter a lower power idle mode to save a little power
-      LowPower.idle(SLEEP_2S, ADC_OFF, TIMER2_ON, TIMER1_ON, TIMER0_ON, SPI_OFF,
-            USART0_ON, TWI_ON);
+//      LowPower.idle(SLEEP_4S, ADC_OFF, TIMER2_ON, TIMER1_ON, TIMER0_ON, SPI_OFF,
+//            USART0_ON, TWI_ON);
+      mainState = STATE_OFF;
     break;
   }
 
@@ -492,7 +547,18 @@ void PrintOLED(void)
   } else if (mainState == STATE_HEATING){
     oled.print(F("HEATING"));
   } else if (mainState == STATE_OFF){
-    oled.print(F("Replace battery"));
+    if (lowVoltageFlag & !heaterFailFlag){
+      oled.print(F("Replace battery"));  
+    } else if (heaterFailFlag & !lowVoltageFlag){
+      oled.print(F("Heater failed"));
+    } else if (lowVoltageFlag & heaterFailFlag){
+      // both failed
+      if (errorFlashFlag){
+        oled.print(F("Heater failed"));  
+      } else {
+        oled.print(F("Replace batt"));
+      }
+    }
   }
   oled.println();
   // 2nd line
@@ -503,20 +569,24 @@ void PrintOLED(void)
   oled.println(movingAverageCurr);
   // 4th line, show Wattage
   oled.print(F("Watts: "));
-  oled.println(Watts);
-  // 5th line
-  oled.print(F("PWM: "));
+  oled.print(Watts);
+  oled.print(F(" PWM: "));
   oled.println(myPWM);
-  // 6th line
+  // 5th line
   oled.print(F("Tide ft:"));
   oled.println(tideHeightft);
-  // 7th line
+  // 6th line
   printTimeOLED(newtime);
-  // 8th line, run time
+  // 7th line, run time
   if (mainState == STATE_OFF){
     oled.println();
     oled.print(F("Run time, mins: "));
     oled.print( (endTime.unixtime() - startTime.unixtime()) / 60);
+  }
+  // Fail flags
+  if (heaterFailFlag){
+    oled.println();
+    oled.print(F("Heater fail"));
   }
 }
 
