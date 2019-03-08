@@ -31,9 +31,9 @@
 #include "LowPower.h" // https://github.com/rocketscream/Low-Power/
 //***********************************************************************
 //*******Customization variables*****************************************
-float tideHeightThreshold = 7.0; // threshold for low vs high tide, units feet
-float maxWatts = 31.0; // max power output of heater
-float minWatts = 29.0; // minimum power output of heater
+float tideHeightThreshold = 15.0; // threshold for low vs high tide, units feet
+float maxWatts = 15.5; // max power output of heater
+float minWatts = 14.5; // minimum power output of heater
 
 //***********************************************************************
 //***********************************************************************
@@ -155,6 +155,14 @@ void setup() {
   // Start serial port
   Serial.begin(57600);
   Serial.println(F("Hello"));
+  Serial.print(F("Power setting: "));
+  Serial.print(maxWatts);
+  Serial.print(F("-"));
+  Serial.print(minWatts);
+  Serial.println(F(" Watts"));
+  Serial.print(F("Tide threshold: "));
+  Serial.print(tideHeightThreshold);
+  Serial.println(F(" ft."));
   //*************************
   // Initialize the real time clock DS3231M
   Wire.begin(); // Start the I2C library with default options
@@ -219,6 +227,7 @@ void setup() {
   Watts = movingAveragePower / 1000; // Convert estimated power output mW to Watts
   if (movingAverageCurr < 1000){
     heaterFailFlag = true;
+    Serial.println(F("Heater failed?"));
     for (int i = 0; i<5; i++){
       setColor(255,255,255);
       delay(20);
@@ -436,6 +445,7 @@ void loop() {
         // preserve the battery.
         mainState = STATE_OFF;
         lowVoltageFlag = true; // Set the lowVoltageFlag true to avoid further heating
+        Serial.println(F("Low battery voltage"));
         endTime = rtc.now(); // record finishing time
       }
 
