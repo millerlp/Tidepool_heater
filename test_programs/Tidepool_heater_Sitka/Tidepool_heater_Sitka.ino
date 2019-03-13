@@ -31,9 +31,9 @@
 #include "LowPower.h" // https://github.com/rocketscream/Low-Power/
 //***********************************************************************
 //*******Customization variables*****************************************
-float tideHeightThreshold = 15.0; // threshold for low vs high tide, units feet
-float maxWatts = 15.5; // max power output of heater
-float minWatts = 14.5; // minimum power output of heater
+float tideHeightThreshold = 5.9; // threshold for low vs high tide, units feet (5.9ft = 1.8m)
+float maxWatts = 30.5; // max power output of heater
+float minWatts = 29.5; // minimum power output of heater
 
 //***********************************************************************
 //***********************************************************************
@@ -260,6 +260,7 @@ void loop() {
   wdt_reset();
   // Update time and check if a new minute has started
   newtime = rtc.now();
+  
   if ( newtime.minute() != oldtime.minute() ) {
     // If the minute values don't match, a new minute has turned over
     // Recalculate tide height, update oldtime
@@ -404,6 +405,7 @@ void loop() {
     // in the STATE_IDLE case. 
     case STATE_HEATING:
       analogWrite(MOSFET, myPWM);
+      endTime = newtime;
       PowerSample(ina219); // Sample INA219 and update current,voltage,power variables
       if (flashFlag) {
         // Turn on red LED
@@ -588,11 +590,11 @@ void PrintOLED(void)
   // 6th line
   printTimeOLED(newtime);
   // 7th line, run time
-  if (mainState == STATE_OFF){
+//  if (mainState == STATE_OFF){
     oled.println();
     oled.print(F("Run time, mins: "));
     oled.print( (endTime.unixtime() - startTime.unixtime()) / 60);
-  }
+//  }
   // Fail flags
   if (heaterFailFlag){
     oled.println();
