@@ -9,6 +9,7 @@
     Red flash = active heating
     Blue flash = battery voltage low, replace batteries
     Fast white flash = heater failure, reboot and check heater
+    Fast red-green-blue = real time clock failure, reprogram board
 
     Designed for Revision C tidepool heater hardware, loaded with 
     Optiboot bootloader (6.2 or higher).
