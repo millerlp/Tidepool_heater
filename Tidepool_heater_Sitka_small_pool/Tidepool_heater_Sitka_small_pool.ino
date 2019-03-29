@@ -29,7 +29,7 @@
 #include <avr/wdt.h>
 #include "RTClib.h"  // https://github.com/millerlp/RTClib
 #include "TidelibSitkaBaronofIslandSitkaSoundAlaska.h"
-#include "LowPower.h" // https://github.com/rocketscream/Low-Power/
+//#include "LowPower.h" // https://github.com/rocketscream/Low-Power/
 //***********************************************************************
 //*******Customization variables*****************************************
 float tideHeightThreshold = 5.9; // threshold for low vs high tide, units feet (5.9ft = 1.8m)
