@@ -1,6 +1,6 @@
 /*  Tidepool_heater_Sitka_small_pool.ino
     Luke Miller 2019
-    Heater output set to 15W for smaller pools
+    Heater output set to 15W for smaller pools (5, 8, 21, 29)
     Tide predictions for Sitka Alaska, assuming UTC-9 time zone year around
     Make sure onboard clock is set to UTC-9 time zone, ignore daylight savings time
 
@@ -9,6 +9,7 @@
     Red flash = active heating
     Blue flash = battery voltage low, replace batteries
     Fast white flash = heater failure, reboot and check heater
+    Fast red-green-blue = real time clock failure, reprogram board
 
     Designed for Revision C tidepool heater hardware, loaded with 
     Optiboot bootloader (6.2 or higher).
@@ -286,6 +287,9 @@ void loop() {
   }
   // Report current current flow value if the reportTime interval has elapsed
   if ( millis() > (myMillis + reportTime) ){
+        printTimeSerial(newtime); // print time to serial monitor
+        Serial.print(F(", Tide ft: "));
+        Serial.println(tideHeightft);
 //      Serial.print(F("Average current: "));
 //      Serial.print(movingAverageCurr);
 //      Serial.print(F("mA\t Voltage:"));

@@ -1,6 +1,6 @@
 /*  Tidepool_heater_Sitka_large_pool.ino
     Luke Miller 2019
-    Heater output set to 30W for larger tide pools
+    Heater output set to 30W for larger tide pools (11, 13, 16, 26, 33, 36)
     Tide predictions for Sitka Alaska, assuming UTC-9 time zone year around
     Make sure onboard clock is set to UTC-9 time zone, ignore daylight savings time
 
@@ -287,6 +287,9 @@ void loop() {
   }
   // Report current current flow value if the reportTime interval has elapsed
   if ( millis() > (myMillis + reportTime) ){
+        printTimeSerial(newtime); // print time to serial monitor
+        Serial.print(F(", Tide ft: "));
+        Serial.println(tideHeightft);
 //      Serial.print(F("Average current: "));
 //      Serial.print(movingAverageCurr);
 //      Serial.print(F("mA\t Voltage:"));
