@@ -80,6 +80,8 @@ int sunsetHour = 20; // default hour for sunset
 bool quitFlag = false; // Flag to quit the heating loop
 DateTime startTime;
 DateTime endTime;
+long heatTimeLimit = 3; // Time limit (hours) for heating during one low tide
+bool lowtideLimitFlag = false; // Used to quit heating during one low tide
 //******************************
 // Set up INA219 current/voltage monitor (default I2C address is 0x40)
 Adafruit_INA219 ina219(0x40);
@@ -252,6 +254,7 @@ void setup() {
   }
   analogWrite(MOSFET, 0); // turn heater mosfet off
   //------------------------
+  heatTimeLimit = heatTimeLimit * 60 * 60; // convert hours to seconds
   debounceState = DEBOUNCE_STATE_IDLE;
   mainState = STATE_IDLE; // Start the main loop in idle mode (mosfet off)
   // Enable the watchdog timer so that reset happens if anything stalls
@@ -281,7 +284,11 @@ void loop() {
     // Recalculate tide height, update oldtime
     oldtime = newtime;
     // Calculate new tide height based on current time
-    tideHeightft = myTideCalc.currentTide(newtime); 
+    tideHeightft = myTideCalc.currentTide(newtime);
+    // Reset lowtideLimitFlag if tide is above threshold
+    if (tideHeightft > (tideHeightThreshold + 0.1)){
+      lowtideLimitFlag = false; // Reset to false to allow heating on next low tide 
+    }
     // Call update function to update sunrise/sunset values, if needed
     updateSunriseSunset(newtime, oldday); 
   }
@@ -408,12 +415,14 @@ void loop() {
       // Check and see if conditions are appropriate for turning the
       // heater on. If the predicted tide height is less than the
       // tideHeightThreshold, and time is later than sunriseHour and
-      // earlier than sunsetHour, and the lowVoltageflag is still false
+      // earlier than sunsetHour, and the lowVoltageflag is still false,
+      // and the lowtideLimitFlag is false,
       // then the heating can begin. 
       if ( (tideHeightft < tideHeightThreshold) & 
         (newtime.hour() > sunriseHour) &
-        (newtime.hour() < sunsetHour) & !lowVoltageFlag){
+        (newtime.hour() < sunsetHour) & !lowVoltageFlag & !lowtideLimitFlag){
           mainState = STATE_HEATING;  // Switch to heating mode
+          startTime = rtc.now(); // record start time
       }
     break; // end of STATE_IDLE case
     //**********************************
@@ -422,53 +431,68 @@ void loop() {
     // state change, or because the heating conditions were satisfied
     // in the STATE_IDLE case. 
     case STATE_HEATING:
-      analogWrite(MOSFET, myPWM);
-      endTime = newtime;
-      PowerSample(ina219); // Sample INA219 and update current,voltage,power variables
-      if (flashFlag) {
-        // Turn on red LED
-        setColor(127,0,0);
-      } else if (!flashFlag){
-        // Turn off red LED
-        setColor(0,0,0);
-      }
-      // If heater power is on, make sure voltageMin hasn't been passed
-      if (loadVoltage > voltageMin) {
-        // If the loadVoltage is still above voltageMin, then continue
-        // heating, adjust power output if necessary
-        if (Watts > minWatts & Watts < maxWatts){
-          // Wattage is within desired range, do nothing
-        } else if (Watts < minWatts) {
-          // Wattage is low, adjust PWM value up
-          if (myPWM < maxPWM) {
-            myPWM += 1;
+      // First check to see if we should still be heating, or if the tide
+      // has risen past the height threshold, or if we've been heating for 
+      // longer than heatTimeLimit
+      if ( (tideHeightft < tideHeightThreshold) & 
+        ( (newtime.unixtime() - startTime.unixtime() ) < heatTimeLimit)) {
+          // If those tests are passed, then continue heating
+          analogWrite(MOSFET, myPWM);
+          endTime = newtime;
+          PowerSample(ina219); // Sample INA219 and update current,voltage,power variables
+          if (flashFlag) {
+            // Turn on red LED
+            setColor(127,0,0);
+          } else if (!flashFlag){
+            // Turn off red LED
+            setColor(0,0,0);
           }
-          if (myPWM == 255 & Watts < 1.0){
-            // If the heater mosfet is fully on (255) and power usage
-            // is still less than 1 Watt, the heater is probably broken
-            // Increment the failure counter
-            failCounter++;
-            if (failCounter > 2000){
-              // If enough failure cycles occur, shut it down
-              heaterFailFlag = true; // set the failure flag
-              mainState = STATE_OFF; // shut it down
-            } 
+          // If heater power is on, make sure voltageMin hasn't been passed
+          if (loadVoltage > voltageMin) {
+            // If the loadVoltage is still above voltageMin, then continue
+            // heating, adjust power output if necessary
+            if (Watts > minWatts & Watts < maxWatts){
+              // Wattage is within desired range, do nothing
+            } else if (Watts < minWatts) {
+              // Wattage is low, adjust PWM value up
+              if (myPWM < maxPWM) {
+                myPWM += 1;
+              }
+              if (myPWM == 255 & Watts < 1.0){
+                // If the heater mosfet is fully on (255) and power usage
+                // is still less than 1 Watt, the heater is probably broken
+                // Increment the failure counter
+                failCounter++;
+                if (failCounter > 2000){
+                  // If enough failure cycles occur, shut it down
+                  heaterFailFlag = true; // set the failure flag
+                  mainState = STATE_OFF; // shut it down
+                } 
+              }
+            } else if (Watts > maxWatts) {
+              // Wattage is high, lower PWM value
+              if (myPWM > 0) {
+                myPWM -= 1;
+              }
+            }         
+          } else {
+            // if loadVoltage less than voltageMin, shut off the heater to 
+            // preserve the battery.
+            mainState = STATE_OFF;
+            lowVoltageFlag = true; // Set the lowVoltageFlag true to avoid further heating
+            Serial.println(F("Low battery voltage"));
+            endTime = rtc.now(); // record finishing time
           }
-        } else if (Watts > maxWatts) {
-          // Wattage is high, lower PWM value
-          if (myPWM > 0) {
-            myPWM -= 1;
-          }
-        }         
-      } else {
-        // if loadVoltage less than voltageMin, shut off the heater to 
-        // preserve the battery.
-        mainState = STATE_OFF;
-        lowVoltageFlag = true; // Set the lowVoltageFlag true to avoid further heating
-        Serial.println(F("Low battery voltage"));
-        endTime = rtc.now(); // record finishing time
-      }
 
+        } else if (tideHeightft >= tideHeightThreshold) {
+          // Tide is high, go back to idle state
+          mainState = STATE_IDLE;
+        } else if ( newtime.unixtime() - startTime.unixtime() >= heatTimeLimit) {
+          // Been heating for more than heatTimeLimit, so set lowtideLimitFlag to true
+          lowtideLimitFlag = true;
+          mainState = STATE_IDLE;
+        }
+      
     break; // end of STATE_HEATING case
     //***********************************************
     // STATE_OFF handles the case when the lowVoltageFlag is true,
@@ -496,9 +520,7 @@ void loop() {
       } else if (!flashFlag) {
         setColor(0,0,0); // turn off LED
       }
-      // Enter a lower power idle mode to save a little power
-//      LowPower.idle(SLEEP_4S, ADC_OFF, TIMER2_ON, TIMER1_ON, TIMER0_ON, SPI_OFF,
-//            USART0_ON, TWI_ON);
+
       mainState = STATE_OFF;
     break;
   }
