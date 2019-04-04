@@ -745,37 +745,37 @@ void updateSunriseSunset(DateTime newtime, byte oldday){
           break;
           case 3:
             // March
-            sunriseHour = 7;
+            sunriseHour = 9;
             sunsetHour = 17;
           break;
           case 4:
             // April
-            sunriseHour = 6;
+            sunriseHour = 9;
             sunsetHour = 18;
           break;
           case 5:
             // May
-            sunriseHour = 5;
+            sunriseHour = 9;
             sunsetHour = 19;
           break;
           case 6:
             // June
-            sunriseHour = 4;
-            sunsetHour = 20;
+            sunriseHour = 9;
+            sunsetHour = 19;
           break;
           case 7:
             // July
-            sunriseHour = 4;
-            sunsetHour = 20;
+            sunriseHour = 9;
+            sunsetHour = 19;
           break;
           case 8:
             // August
-            sunriseHour = 5;
-            sunsetHour = 20;
+            sunriseHour = 9;
+            sunsetHour = 19;
           break;
           case 9:
             // September
-            sunriseHour = 6;
+            sunriseHour = 9;
             sunsetHour = 18;
           break;
           case 10:
