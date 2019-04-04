@@ -169,6 +169,8 @@ void setup() {
   Serial.print(F("Tide threshold: "));
   Serial.print(tideHeightThreshold);
   Serial.println(F(" ft."));
+  Serial.print(F("Heating time limit, hrs: "));
+  Serial.println(heatTimeLimit);
   //*************************
   // Initialize the real time clock DS3231M
   Wire.begin(); // Start the I2C library with default options
@@ -419,7 +421,7 @@ void loop() {
       // and the lowtideLimitFlag is false,
       // then the heating can begin. 
       if ( (tideHeightft < tideHeightThreshold) & 
-        (newtime.hour() > sunriseHour) &
+        (newtime.hour() >= sunriseHour) &
         (newtime.hour() < sunsetHour) & !lowVoltageFlag & !lowtideLimitFlag){
           mainState = STATE_HEATING;  // Switch to heating mode
           startTime = rtc.now(); // record start time
