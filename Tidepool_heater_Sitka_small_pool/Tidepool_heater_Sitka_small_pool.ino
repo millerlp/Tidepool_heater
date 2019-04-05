@@ -3,13 +3,15 @@
     Heater output set to 15W for smaller pools (5, 8, 21, 29)
     Tide predictions for Sitka Alaska, assuming UTC-9 time zone year around
     Make sure onboard clock is set to UTC-9 time zone, ignore daylight savings time
-
-    Status LED:
+    
+    See the Customization Variables section below for user-adjustable variables
+    
+    Status LED codes:
     Green flash = idle, waiting for proper conditions to begin heating
     Red flash = active heating
     Blue flash = battery voltage low, replace batteries
     Fast white flash = heater failure, reboot and check heater
-    Fast red-green-blue = real time clock failure, reprogram board
+    Fast red-green-blue = real time clock failure, reprogram clock
 
     Designed for Revision C tidepool heater hardware, loaded with 
     Optiboot bootloader (6.2 or higher).
@@ -35,7 +37,7 @@
 float tideHeightThreshold = 5.9; // threshold for low vs high tide, units feet (5.9ft = 1.8m)
 float maxWatts = 15.5; // max power output of heater
 float minWatts = 14.5; // minimum power output of heater
-
+long heatTimeLimit = 3; // Time limit (hours) for heating during one low tide
 //***********************************************************************
 //***********************************************************************
 #define REVC  // Comment this line out to use Rev A/B hardware
@@ -80,7 +82,7 @@ int sunsetHour = 20; // default hour for sunset
 bool quitFlag = false; // Flag to quit the heating loop
 DateTime startTime;
 DateTime endTime;
-long heatTimeLimit = 3; // Time limit (hours) for heating during one low tide
+
 bool lowtideLimitFlag = false; // Used to quit heating during one low tide
 //******************************
 // Set up INA219 current/voltage monitor (default I2C address is 0x40)
@@ -224,7 +226,13 @@ void setup() {
   newtime = rtc.now(); // get time
   oldtime = newtime;    // store time
   oldday = oldtime.day(); // Store current day value
-
+  updateSunriseSunset(newtime, 0); // Update sunrise and sunset times
+  // Show user the sunrise and sunset times (these are really just 
+  // time ranges during the day when we want the heater to run)
+  Serial.print(F("Sunrise start hour: "));
+  Serial.print(sunriseHour);
+  Serial.print(F(", Sunset stop hour: "));
+  Serial.println(sunsetHour);
 
   // Test the attached heater, current should be > 1000mA
   // Turn on heater mosfet full-on
