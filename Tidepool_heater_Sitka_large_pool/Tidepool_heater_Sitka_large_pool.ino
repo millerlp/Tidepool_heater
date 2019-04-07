@@ -37,7 +37,7 @@
 float tideHeightThreshold = 5.9; // threshold for low vs high tide, units feet (5.9ft = 1.8m)
 float maxWatts = 30.5; // max power output of heater
 float minWatts = 29.5; // minimum power output of heater
-long heatTimeLimit = 4; // Time limit (hours) for heating during one low tide
+long heatTimeLimit = 5; // Time limit (hours) for heating during one low tide
 //***********************************************************************
 //***********************************************************************
 #define REVC  // Comment this line out to use Rev A/B hardware
@@ -443,9 +443,10 @@ void loop() {
     case STATE_HEATING:
       // First check to see if we should still be heating, or if the tide
       // has risen past the height threshold, or if we've been heating for 
-      // longer than heatTimeLimit
+      // longer than heatTimeLimit, or if the current time is later than sunsetHour
       if ( (tideHeightft < tideHeightThreshold) & 
-        ( (newtime.unixtime() - startTime.unixtime() ) < heatTimeLimit)) {
+        ( (newtime.unixtime() - startTime.unixtime() ) < heatTimeLimit) |
+        newtime.hour() >= sunsetHour) {
           // If those tests are passed, then continue heating
           analogWrite(MOSFET, myPWM);
           endTime = newtime;
@@ -497,10 +498,15 @@ void loop() {
         } else if (tideHeightft >= tideHeightThreshold) {
           // Tide is high, go back to idle state
           mainState = STATE_IDLE;
+          lowtideLimitFlag = false;
         } else if ( newtime.unixtime() - startTime.unixtime() >= heatTimeLimit) {
           // Been heating for more than heatTimeLimit, so set lowtideLimitFlag to true
           lowtideLimitFlag = true;
           mainState = STATE_IDLE;
+        } else if ( newtime.hour() >= sunsetHour) {
+          // If the time has rolled past sunsetHour, turn off
+          mainState = STATE_IDLE;
+          lowtideLimitFlag = false;
         }
       
     break; // end of STATE_HEATING case
@@ -760,33 +766,33 @@ void updateSunriseSunset(DateTime newtime, byte oldday){
           break;
           case 4:
             // April
-            sunriseHour = 8;
-            sunsetHour = 18;
+            sunriseHour = 7;
+            sunsetHour = 20;
           break;
           case 5:
             // May
-            sunriseHour = 8;
-            sunsetHour = 18;
+            sunriseHour = 7;
+            sunsetHour = 20;
           break;
           case 6:
             // June
-            sunriseHour = 8;
-            sunsetHour = 18;
+            sunriseHour = 7;
+            sunsetHour = 20;
           break;
           case 7:
             // July
-            sunriseHour = 8;
-            sunsetHour = 18;
+            sunriseHour = 7;
+            sunsetHour = 20;
           break;
           case 8:
             // August
-            sunriseHour = 8;
-            sunsetHour = 18;
+            sunriseHour = 7;
+            sunsetHour = 20;
           break;
           case 9:
             // September
-            sunriseHour = 8;
-            sunsetHour = 17;
+            sunriseHour = 7;
+            sunsetHour = 20;
           break;
           case 10:
             // October
