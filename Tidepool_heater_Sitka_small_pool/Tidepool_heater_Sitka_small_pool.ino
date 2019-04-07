@@ -37,7 +37,7 @@
 float tideHeightThreshold = 5.9; // threshold for low vs high tide, units feet (5.9ft = 1.8m)
 float maxWatts = 15.5; // max power output of heater
 float minWatts = 14.5; // minimum power output of heater
-long heatTimeLimit = 3; // Time limit (hours) for heating during one low tide
+long heatTimeLimit = 4; // Time limit (hours) for heating during one low tide
 //***********************************************************************
 //***********************************************************************
 #define REVC  // Comment this line out to use Rev A/B hardware
