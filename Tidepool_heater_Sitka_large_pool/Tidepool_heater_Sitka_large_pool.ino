@@ -441,12 +441,12 @@ void loop() {
     // state change, or because the heating conditions were satisfied
     // in the STATE_IDLE case. 
     case STATE_HEATING:
-      // First check to see if we should still be heating, or if the tide
-      // has risen past the height threshold, or if we've been heating for 
-      // longer than heatTimeLimit, or if the current time is later than sunsetHour
+      // First check to see if we should still be heating: is the tide
+      // has below the height threshold, and have we been heating for 
+      // less than heatTimeLimit, and is the current time earlier than sunsetHour
       if ( (tideHeightft < tideHeightThreshold) & 
-        ( (newtime.unixtime() - startTime.unixtime() ) < heatTimeLimit) |
-        newtime.hour() >= sunsetHour) {
+        ( (newtime.unixtime() - startTime.unixtime() ) < heatTimeLimit) &
+        newtime.hour() < sunsetHour) {
           // If those tests are passed, then continue heating
           analogWrite(MOSFET, myPWM);
           endTime = newtime;
