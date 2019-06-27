@@ -34,9 +34,9 @@
 //#include "LowPower.h" // https://github.com/rocketscream/Low-Power/
 //***********************************************************************
 //*******Customization variables*****************************************
-float tideHeightThreshold = 5.9; // threshold for low vs high tide, units feet (5.9ft = 1.8m)
-float maxWatts = 30.5; // max power output of heater
-float minWatts = 29.5; // minimum power output of heater
+float tideHeightThreshold = 8.0; // threshold for low vs high tide, units feet (5.9ft = 1.8m)
+float maxWatts = 60.5; // max power output of heater
+float minWatts = 59.5; // minimum power output of heater
 long heatTimeLimit = 5; // Time limit (hours) for heating during one low tide
 //***********************************************************************
 //***********************************************************************
