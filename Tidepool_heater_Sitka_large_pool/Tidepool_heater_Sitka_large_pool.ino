@@ -163,6 +163,7 @@ void setup() {
   // Start serial port
   Serial.begin(57600);
   Serial.println(F("Hello"));
+  Serial.println(myTideCalc.returnStationID());
   Serial.print(F("Power setting: "));
   Serial.print(maxWatts);
   Serial.print(F("-"));
