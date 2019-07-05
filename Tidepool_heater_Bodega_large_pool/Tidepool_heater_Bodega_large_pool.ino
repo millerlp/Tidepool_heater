@@ -34,7 +34,7 @@
 //#include "LowPower.h" // https://github.com/rocketscream/Low-Power/
 //***********************************************************************
 //*******Customization variables*****************************************
-float tideHeightThreshold = 8.0; // threshold for low vs high tide, units feet (5.9ft = 1.8m)
+float tideHeightThreshold = 4.1; // threshold for low vs high tide, units feet (4.1ft = 1.25m)
 float maxWatts = 60.5; // max power output of heater
 float minWatts = 59.5; // minimum power output of heater
 long heatTimeLimit = 5; // Time limit (hours) for heating during one low tide
@@ -163,6 +163,7 @@ void setup() {
   // Start serial port
   Serial.begin(57600);
   Serial.println(F("Hello"));
+  Serial.println(myTideCalc.returnStationID());
   Serial.print(F("Power setting: "));
   Serial.print(maxWatts);
   Serial.print(F("-"));
