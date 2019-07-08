@@ -165,9 +165,9 @@ void setup() {
   Serial.println(F("Hello"));
   Serial.println(myTideCalc.returnStationID());
   Serial.print(F("Power setting: "));
-  Serial.print(maxWatts);
-  Serial.print(F("-"));
   Serial.print(minWatts);
+  Serial.print(F(" to "));
+  Serial.print(maxWatts);
   Serial.println(F(" Watts"));
   Serial.print(F("Tide threshold: "));
   Serial.print(tideHeightThreshold);
