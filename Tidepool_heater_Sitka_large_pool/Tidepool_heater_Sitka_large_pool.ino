@@ -732,8 +732,7 @@ void printTimeSerial(DateTime now){
     Serial.print(now.second(), DEC);
   // You may want to print a newline character
   // after calling this function i.e. Serial.println();
-
-}
+}  
 
 
 //--------------updateSunriseSunset---------------------------------
