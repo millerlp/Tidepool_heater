@@ -1,9 +1,9 @@
-/*  Tidepool_heater_Sitka_small_pool.ino
+/*  Tidepool_heater_Sitka_large_pool.ino
     Luke Miller 2019
-    Heater output set to 15W for smaller pools (5, 8, 21, 29)
+    Heater output set to 30W for all Sitka pools during Summer 2019 experiment
     Tide predictions for Sitka Alaska, assuming UTC-9 time zone year around
     Make sure onboard clock is set to UTC-9 time zone, ignore daylight savings time
-    
+
     See the Customization Variables section below for user-adjustable variables
     
     Status LED codes:
@@ -31,13 +31,13 @@
 #include <avr/wdt.h>
 #include "RTClib.h"  // https://github.com/millerlp/RTClib
 #include "TidelibSitkaBaronofIslandSitkaSoundAlaska.h"
-
+//#include "LowPower.h" // https://github.com/rocketscream/Low-Power/
 //***********************************************************************
 //*******Customization variables*****************************************
 float tideHeightThreshold = 5.9; // threshold for low vs high tide, units feet (5.9ft = 1.8m)
-float maxWatts = 15.5; // max power output of heater
-float minWatts = 14.5; // minimum power output of heater
-long heatTimeLimit = 4; // Time limit (hours) for heating during one low tide
+float maxWatts = 60.5; // max power output of heater
+float minWatts = 59.5; // minimum power output of heater
+unsigned long heatTimeLimit = 5; // Time limit (hours) for heating during one low tide
 //***********************************************************************
 //***********************************************************************
 #define REVC  // Comment this line out to use Rev A/B hardware
@@ -163,10 +163,11 @@ void setup() {
   // Start serial port
   Serial.begin(57600);
   Serial.println(F("Hello"));
+  Serial.println(myTideCalc.returnStationID());
   Serial.print(F("Power setting: "));
-  Serial.print(maxWatts);
-  Serial.print(F("-"));
   Serial.print(minWatts);
+  Serial.print(F(" to "));
+  Serial.print(maxWatts);
   Serial.println(F(" Watts"));
   Serial.print(F("Tide threshold: "));
   Serial.print(tideHeightThreshold);
@@ -182,7 +183,7 @@ void setup() {
   newtime = rtc.now(); // read a time from the real time clock
   //***********************************************
   // Check that real time clock has a reasonable time value
-  if (newtime.year() < 2019 | newtime.year() > 2035) {
+  if ( (newtime.year() < 2020) | (newtime.year() > 2035) ) {
     // There is an error with the clock, halt everything
     while(1){
     // Flash the error led to notify the user
@@ -214,11 +215,11 @@ void setup() {
   // for high-wattage applications because the unloaded voltage tends to end
   // up rebounding a bit higher.
   if (minWatts > 25.0){
-     // 30watt heaters can run to a lower minimum voltage
+     // 60watt heaters can run to a lower minimum voltage
     voltageMin = 11.00; // units: volts   
   } else if (minWatts < 25.0) {
     // 20watt heaters need to have a higher minimum since they
-    // tend t draw down the unloaded voltage lower as well due to the 
+    // tend to draw down the unloaded voltage lower as well due to the 
     // lower load.
     voltageMin = 11.20; // units: volts   
   }
@@ -247,7 +248,7 @@ void setup() {
       delay(1);
   }
   movingAverageCurr = movingAverageCurrSum / averageCount; // Calculate average, mA
-  movingAverageBusV = movingAverageBusVSum/ averageCount; // Calculate average, Volts
+  movingAverageBusV = movingAverageBusVSum / averageCount; // Calculate average, Volts
   movingAverageShuntV = movingAverageShuntVSum / averageCount; // Calculate average, mV
   movingAveragePower = movingAveragePowerSum / averageCount; // Calculate average, mW
   loadVoltage = movingAverageBusV + (movingAverageShuntV / 1000); // Average battery voltage
@@ -430,7 +431,9 @@ void loop() {
       // then the heating can begin. 
       if ( (tideHeightft < tideHeightThreshold) & 
         (newtime.hour() >= sunriseHour) &
-        (newtime.hour() < sunsetHour) & !lowVoltageFlag & !lowtideLimitFlag){
+        (newtime.hour() < sunsetHour) & 
+        !lowVoltageFlag & 
+        !lowtideLimitFlag){
           mainState = STATE_HEATING;  // Switch to heating mode
           startTime = rtc.now(); // record start time
       }
@@ -441,11 +444,12 @@ void loop() {
     // state change, or because the heating conditions were satisfied
     // in the STATE_IDLE case. 
     case STATE_HEATING:
-      // First check to see if we should still be heating, or if the tide
-      // has risen past the height threshold, or if we've been heating for 
-      // longer than heatTimeLimit
+      // First check to see if we should still be heating: is the tide
+      // has below the height threshold, and have we been heating for 
+      // less than heatTimeLimit, and is the current time earlier than sunsetHour
       if ( (tideHeightft < tideHeightThreshold) & 
-        ( (newtime.unixtime() - startTime.unixtime() ) < heatTimeLimit)) {
+        ( (newtime.unixtime() - startTime.unixtime()) < heatTimeLimit) &
+        (newtime.hour() < sunsetHour) ) {
           // If those tests are passed, then continue heating
           analogWrite(MOSFET, myPWM);
           endTime = newtime;
@@ -461,14 +465,14 @@ void loop() {
           if (loadVoltage > voltageMin) {
             // If the loadVoltage is still above voltageMin, then continue
             // heating, adjust power output if necessary
-            if (Watts > minWatts & Watts < maxWatts){
+            if ( (Watts > minWatts) & (Watts < maxWatts) ){
               // Wattage is within desired range, do nothing
             } else if (Watts < minWatts) {
               // Wattage is low, adjust PWM value up
               if (myPWM < maxPWM) {
                 myPWM += 1;
               }
-              if (myPWM == 255 & Watts < 1.0){
+              if ( (myPWM == 255) & (Watts < 1.0) ){
                 // If the heater mosfet is fully on (255) and power usage
                 // is still less than 1 Watt, the heater is probably broken
                 // Increment the failure counter
@@ -497,10 +501,15 @@ void loop() {
         } else if (tideHeightft >= tideHeightThreshold) {
           // Tide is high, go back to idle state
           mainState = STATE_IDLE;
+          lowtideLimitFlag = false;
         } else if ( newtime.unixtime() - startTime.unixtime() >= heatTimeLimit) {
           // Been heating for more than heatTimeLimit, so set lowtideLimitFlag to true
           lowtideLimitFlag = true;
           mainState = STATE_IDLE;
+        } else if ( newtime.hour() >= sunsetHour) {
+          // If the time has rolled past sunsetHour, turn off
+          mainState = STATE_IDLE;
+          lowtideLimitFlag = false;
         }
       
     break; // end of STATE_HEATING case
@@ -725,8 +734,7 @@ void printTimeSerial(DateTime now){
     Serial.print(now.second(), DEC);
   // You may want to print a newline character
   // after calling this function i.e. Serial.println();
-
-}
+}  
 
 
 //--------------updateSunriseSunset---------------------------------
@@ -760,33 +768,33 @@ void updateSunriseSunset(DateTime newtime, byte oldday){
           break;
           case 4:
             // April
-            sunriseHour = 8;
-            sunsetHour = 18;
+            sunriseHour = 7;
+            sunsetHour = 20;
           break;
           case 5:
             // May
-            sunriseHour = 8;
-            sunsetHour = 18;
+            sunriseHour = 7;
+            sunsetHour = 20;
           break;
           case 6:
             // June
-            sunriseHour = 8;
-            sunsetHour = 18;
+            sunriseHour = 7;
+            sunsetHour = 20;
           break;
           case 7:
             // July
-            sunriseHour = 8;
-            sunsetHour = 18;
+            sunriseHour = 7;
+            sunsetHour = 20;
           break;
           case 8:
             // August
-            sunriseHour = 8;
-            sunsetHour = 18;
+            sunriseHour = 7;
+            sunsetHour = 20;
           break;
           case 9:
             // September
-            sunriseHour = 8;
-            sunsetHour = 17;
+            sunriseHour = 7;
+            sunsetHour = 20;
           break;
           case 10:
             // October

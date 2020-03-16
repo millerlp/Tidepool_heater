@@ -1,6 +1,6 @@
-/*  Tidepool_heater_Sitka_large_pool.ino
+/*  Tidepool_heater_Bodega_large_pool.ino
     Luke Miller 2019
-    Heater output set to 30W for larger tide pools (11, 13, 16, 26, 33, 36)
+    Heater output set to 60W for all pools at Bodega during Summer 2019 experiment
     Tide predictions for Sitka Alaska, assuming UTC-9 time zone year around
     Make sure onboard clock is set to UTC-9 time zone, ignore daylight savings time
 
@@ -30,13 +30,13 @@
 #include "INA219.h" // https://github.com/millerlp/INA219
 #include <avr/wdt.h>
 #include "RTClib.h"  // https://github.com/millerlp/RTClib
-#include "TidelibSitkaBaronofIslandSitkaSoundAlaska.h"
+#include "TidelibDrakesBayPointReyesCalifornia.h"
 //#include "LowPower.h" // https://github.com/rocketscream/Low-Power/
 //***********************************************************************
 //*******Customization variables*****************************************
-float tideHeightThreshold = 5.9; // threshold for low vs high tide, units feet (5.9ft = 1.8m)
-float maxWatts = 30.5; // max power output of heater
-float minWatts = 29.5; // minimum power output of heater
+float tideHeightThreshold = 4.1; // threshold for low vs high tide, units feet (4.1ft = 1.25m)
+float maxWatts = 60.5; // max power output of heater
+float minWatts = 59.5; // minimum power output of heater
 long heatTimeLimit = 5; // Time limit (hours) for heating during one low tide
 //***********************************************************************
 //***********************************************************************
@@ -732,7 +732,8 @@ void printTimeSerial(DateTime now){
     Serial.print(now.second(), DEC);
   // You may want to print a newline character
   // after calling this function i.e. Serial.println();
-}  
+
+}
 
 
 //--------------updateSunriseSunset---------------------------------
@@ -747,52 +748,52 @@ void updateSunriseSunset(DateTime newtime, byte oldday){
         // month, and if so we can adjust the sunrise/sunset hours
         oldday = newtime.day(); // update oldday
         // Set sunriseHour and sunsetHour to roughly encompass the
-        // Sitka Alaska day lengths, all in UTC-9 time zone
+        // Bodega Bay CA day lengths, all in UTC-8 time zone
         switch(newtime.month()){
           case 1:
             // January
-            sunriseHour = 9;
-            sunsetHour = 15;
+            sunriseHour = 7;
+            sunsetHour = 17;
           break;
           case 2:
             // February            
-            sunriseHour = 8;
-            sunsetHour = 16;
+            sunriseHour = 7;
+            sunsetHour = 18;
           break;
           case 3:
             // March
-            sunriseHour = 8;
-            sunsetHour = 17;
+            sunriseHour = 7;
+            sunsetHour = 18;
           break;
           case 4:
             // April
-            sunriseHour = 7;
-            sunsetHour = 20;
+            sunriseHour = 6;
+            sunsetHour = 19;
           break;
           case 5:
             // May
-            sunriseHour = 7;
+            sunriseHour = 5;
             sunsetHour = 20;
           break;
           case 6:
             // June
-            sunriseHour = 7;
+            sunriseHour = 8;
             sunsetHour = 20;
           break;
           case 7:
             // July
-            sunriseHour = 7;
+            sunriseHour = 8;
             sunsetHour = 20;
           break;
           case 8:
             // August
-            sunriseHour = 7;
+            sunriseHour = 8;
             sunsetHour = 20;
           break;
           case 9:
             // September
-            sunriseHour = 7;
-            sunsetHour = 20;
+            sunriseHour = 6;
+            sunsetHour = 18;
           break;
           case 10:
             // October
@@ -801,13 +802,13 @@ void updateSunriseSunset(DateTime newtime, byte oldday){
           break;
           case 11:
             // November
-            sunriseHour = 8;
-            sunsetHour = 16;
+            sunriseHour = 7;
+            sunsetHour = 17;
           break;
           case 12:
             // December
-            sunriseHour = 9;
-            sunsetHour = 15;
+            sunriseHour = 8;
+            sunsetHour = 17;
           break;
           
         } // end of switch(newtime.month())
