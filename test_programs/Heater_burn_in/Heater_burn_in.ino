@@ -1,5 +1,5 @@
-/*  mosfet_pwm
- *   Luke Miller Feb 2019
+/*  Heater_burn_in.ino
+ *   Luke Miller 2020
  *   
  *   Test sketch to regulate power output from heater by 
  *   pulse-width-modulating the mosfet that controls the
@@ -7,6 +7,11 @@
  *   fluctuating current/voltage signals that will 
  *   emanate from the INA219 current monitor due to the 
  *   pulse width modulated signal. 
+ *   
+ *   This will idle when first started (green flash)
+ *   To start heating, hold down button1 for >3 seconds
+ *   and heater will run(red flash) until batteries are
+ *   low (blue flash).
  *   
  *   For use with Tidepool_heater_RevC hardware
  * 
@@ -21,8 +26,8 @@
 //*************************
 #define REVC  // Comment this line out to use Rev A/B hardware
 
-float maxWatts = 31.0;
-float minWatts = 29.0; 
+float maxWatts = 60.5;
+float minWatts = 59.0; 
 
 // Change pin assignments based on hardware Revision
 #ifdef REVC
