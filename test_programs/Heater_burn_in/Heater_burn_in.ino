@@ -197,18 +197,20 @@ void loop() {
   wdt_reset(); 
   // Report current current flow value
   if ( millis() > (myMillis + reportTime) ){
-//      Serial.print(F("Average current: "));
-//      Serial.print(movingAverageCurr);
-//      Serial.print(F("mA\t Voltage:"));
-//      Serial.print(loadVoltage);
-//      Serial.print(F("V\t PWM setting: "));
-//      Serial.print(myPWM);
-//      Serial.print(F("\t"));
-//      if (mainState == STATE_HEATING){
-//        Serial.println("Heating");
-//      } else if (mainState == STATE_IDLE){
-//        Serial.println("Idle");
-//      }
+      Serial.print(F("Average current: "));
+      Serial.print(movingAverageCurr);
+      Serial.print(F("mA\t Voltage:"));
+      Serial.print(loadVoltage);
+      Serial.print(F("V\t PWM setting: "));
+      Serial.print(myPWM);
+      Serial.print(F("\t"));
+      Serial.print(F("Watts: "));
+      Serial.print(Watts);
+      if (mainState == STATE_HEATING){
+        Serial.println(" Heating");
+      } else if (mainState == STATE_IDLE){
+        Serial.println(" Idle");
+      }
       PrintOLED();
       myMillis = millis(); // update myMillis
       flashFlag = !flashFlag;
