@@ -26,8 +26,8 @@
 //*************************
 #define REVC  // Comment this line out to use Rev A/B hardware
 
-float maxWatts = 60.5;
-float minWatts = 59.0; 
+float maxWatts = 40.5;
+float minWatts = 39.0; 
 
 // Change pin assignments based on hardware Revision
 #ifdef REVC
